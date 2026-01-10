@@ -47,6 +47,38 @@ class GoogleSheetsService {
   }
 
   /**
+   * Extract GID (sub-sheet ID) from URL
+   * @param {string} url - Google Sheets URL
+   * @returns {string|null} - GID if present, null otherwise
+   */
+  extractGid(url) {
+    const match = url.match(/#gid=(\d+)/);
+    return match ? match[1] : null;
+  }
+
+  /**
+   * Get sheet name by GID
+   * @param {string} spreadsheetId - Spreadsheet ID
+   * @param {string} gid - Sheet GID
+   * @returns {Promise<string>} - Sheet name
+   */
+  async getSheetNameByGid(spreadsheetId, gid) {
+    const spreadsheet = await this.sheets.spreadsheets.get({
+      spreadsheetId: spreadsheetId,
+    });
+
+    const sheet = spreadsheet.data.sheets.find(
+      s => s.properties.sheetId === parseInt(gid, 10)
+    );
+
+    if (!sheet) {
+      throw new Error(`Sheet with GID "${gid}" not found`);
+    }
+
+    return sheet.properties.title;
+  }
+
+  /**
    * Write data to Google Sheets
    * @param {string} sheetUrl - Google Sheets URL
    * @param {Array<string>} headers - Column headers
@@ -62,8 +94,11 @@ class GoogleSheetsService {
       }
 
       const sheetId = this.extractSheetId(sheetUrl);
+      const gid = this.extractGid(sheetUrl);
+
       logger.info(`Writing data to Google Sheets`, {
         sheetId,
+        gid,
         writeMode,
         rowCount: data.length,
         columnCount: headers.length
@@ -71,10 +106,17 @@ class GoogleSheetsService {
 
       // Get sheet name if not provided
       if (!sheetName) {
-        const spreadsheet = await this.sheets.spreadsheets.get({
-          spreadsheetId: sheetId,
-        });
-        sheetName = spreadsheet.data.sheets[0].properties.title;
+        if (gid) {
+          // Use GID to find the specific sheet
+          sheetName = await this.getSheetNameByGid(sheetId, gid);
+          logger.info(`Resolved sheet name from GID`, { gid, sheetName });
+        } else {
+          // Default to first sheet
+          const spreadsheet = await this.sheets.spreadsheets.get({
+            spreadsheetId: sheetId,
+          });
+          sheetName = spreadsheet.data.sheets[0].properties.title;
+        }
       }
 
       const range = `${sheetName}!A:Z`;
