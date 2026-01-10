@@ -100,6 +100,15 @@ class GoogleSheetsService {
    */
   async writeData(sheetUrl, headers, data, writeMode = 'append', sheetName = null) {
     try {
+      logger.info(`[SHEETS WRITE] Starting`, {
+        sheetUrl,
+        writeMode,
+        rowCount: data.length,
+        columnCount: headers.length,
+        hasSheets: !!this.sheets,
+        hasAuth: !!this.auth
+      });
+
       if (!this.sheets) {
         throw new Error('Google Sheets API not initialized');
       }
@@ -107,26 +116,26 @@ class GoogleSheetsService {
       const sheetId = this.extractSheetId(sheetUrl);
       const gid = this.extractGid(sheetUrl);
 
-      logger.info(`Writing data to Google Sheets`, {
+      logger.info(`[SHEETS WRITE] Extracted IDs`, {
         sheetId,
-        gid,
-        writeMode,
-        rowCount: data.length,
-        columnCount: headers.length
+        gid
       });
 
       // Get sheet name if not provided
       if (!sheetName) {
         if (gid) {
+          logger.info(`[SHEETS WRITE] Getting sheet name by GID...`, { gid });
           // Use GID to find the specific sheet
           sheetName = await this.getSheetNameByGid(sheetId, gid);
-          logger.info(`Resolved sheet name from GID`, { gid, sheetName });
+          logger.info(`[SHEETS WRITE] Resolved sheet name from GID`, { gid, sheetName });
         } else {
+          logger.info(`[SHEETS WRITE] Getting first sheet name...`);
           // Default to first sheet
           const spreadsheet = await this.sheets.spreadsheets.get({
             spreadsheetId: sheetId,
           });
           sheetName = spreadsheet.data.sheets[0].properties.title;
+          logger.info(`[SHEETS WRITE] Got first sheet name`, { sheetName });
         }
       }
 
@@ -229,12 +238,16 @@ class GoogleSheetsService {
         };
       }
     } catch (error) {
-      logger.error('Failed to write data to Google Sheets', {
+      logger.error('[SHEETS WRITE] FAILED', {
         error: error.message,
         errorStack: error.stack,
         errorCode: error.code,
-        errorResponse: error.response?.data,
-        sheetUrl
+        errorName: error.name,
+        errorResponse: JSON.stringify(error.response?.data),
+        errorStatus: error.response?.status,
+        errorStatusText: error.response?.statusText,
+        sheetUrl,
+        fullError: JSON.stringify(error, Object.getOwnPropertyNames(error))
       });
       throw error;
     }
