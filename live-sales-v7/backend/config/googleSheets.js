@@ -5,10 +5,13 @@
  */
 
 module.exports = {
-  // Service Account Email
-  serviceAccountEmail: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
+  // Option 1: Use full credentials JSON (recommended)
+  credentialsJson: process.env.GOOGLE_CREDENTIALS_JSON ?
+    JSON.parse(process.env.GOOGLE_CREDENTIALS_JSON) :
+    null,
 
-  // Private Key (from service account JSON)
+  // Option 2: Fallback to separate email/key (legacy)
+  serviceAccountEmail: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
   privateKey: process.env.GOOGLE_PRIVATE_KEY ?
     process.env.GOOGLE_PRIVATE_KEY.replace(/\\n/g, '\n') :
     null,

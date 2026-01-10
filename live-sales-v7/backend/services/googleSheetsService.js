@@ -14,12 +14,30 @@ class GoogleSheetsService {
    */
   initAuth() {
     try {
+      // Try using full credentials JSON first (recommended)
+      if (config.credentialsJson) {
+        logger.info('Initializing Google Sheets auth with credentials JSON', {
+          email: config.credentialsJson.client_email,
+          projectId: config.credentialsJson.project_id
+        });
+
+        this.auth = new google.auth.GoogleAuth({
+          credentials: config.credentialsJson,
+          scopes: config.scopes,
+        });
+
+        this.sheets = google.sheets({ version: 'v4', auth: this.auth });
+        logger.info('Google Sheets API initialized successfully (using JSON credentials)');
+        return;
+      }
+
+      // Fallback to separate email/key (legacy)
       if (!config.serviceAccountEmail || !config.privateKey) {
         logger.warn('Google Sheets credentials not configured');
         return;
       }
 
-      logger.info('Initializing Google Sheets auth', {
+      logger.info('Initializing Google Sheets auth with email/key', {
         email: config.serviceAccountEmail,
         keyLength: config.privateKey?.length,
         keyStart: config.privateKey?.substring(0, 30)
@@ -32,7 +50,7 @@ class GoogleSheetsService {
       });
 
       this.sheets = google.sheets({ version: 'v4', auth: this.auth });
-      logger.info('Google Sheets API initialized successfully');
+      logger.info('Google Sheets API initialized successfully (using email/key)');
     } catch (error) {
       logger.error('Failed to initialize Google Sheets API', {
         error: error.message,
