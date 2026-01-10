@@ -47,11 +47,12 @@ router.post('/baselinker-token', authMiddleware.authenticate(), async (req, res)
   } catch (error) {
     logger.error('Error saving BaseLinker token', {
       error: error.message,
+      stack: error.stack,
       userId: req.user?.id
     });
 
     res.status(500).json({
-      error: 'Failed to save token',
+      error: `Failed to save token: ${error.message}`,
       code: 'INTERNAL_ERROR'
     });
   }
