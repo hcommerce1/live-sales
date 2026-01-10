@@ -873,6 +873,14 @@ createApp({
     },
 
     async mounted() {
+        // Check authentication - redirect to login if not logged in
+        const user = JSON.parse(localStorage.getItem('user') || 'null');
+        const accessToken = localStorage.getItem('accessToken');
+        if (!user || !accessToken) {
+            window.location.href = '/login.html';
+            return;
+        }
+
         // Update time every second
         setInterval(() => {
             this.updateTime();
