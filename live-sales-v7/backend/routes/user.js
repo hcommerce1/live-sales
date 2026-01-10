@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { PrismaClient } = require('@prisma/client');
-const { authenticateToken } = require('../middleware/auth');
+const authMiddleware = require('../middleware/auth');
 const crypto = require('../utils/crypto');
 const logger = require('../utils/logger');
 
@@ -11,7 +11,7 @@ const prisma = new PrismaClient();
  * POST /api/user/baselinker-token
  * Save user's BaseLinker API token (encrypted)
  */
-router.post('/baselinker-token', authenticateToken, async (req, res) => {
+router.post('/baselinker-token', authMiddleware.authenticate(), async (req, res) => {
   try {
     const { token } = req.body;
     const userId = req.user.id;
@@ -61,7 +61,7 @@ router.post('/baselinker-token', authenticateToken, async (req, res) => {
  * GET /api/user/baselinker-token
  * Get user's BaseLinker API token (decrypted)
  */
-router.get('/baselinker-token', authenticateToken, async (req, res) => {
+router.get('/baselinker-token', authMiddleware.authenticate(), async (req, res) => {
   try {
     const userId = req.user.id;
 
@@ -99,7 +99,7 @@ router.get('/baselinker-token', authenticateToken, async (req, res) => {
  * DELETE /api/user/baselinker-token
  * Delete user's BaseLinker API token
  */
-router.delete('/baselinker-token', authenticateToken, async (req, res) => {
+router.delete('/baselinker-token', authMiddleware.authenticate(), async (req, res) => {
   try {
     const userId = req.user.id;
 
