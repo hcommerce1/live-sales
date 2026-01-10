@@ -1,0 +1,28 @@
+services:
+  # Web Service (Backend + Frontend)
+  - type: web
+    name: live-sales
+    env: node
+    plan: starter # Darmowy plan - 750h/miesiąc
+    # IMPORTANT: Specify the root directory where package.json is located
+    rootDir: live-sales-v7
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      - key: BASELINKER_API_TOKEN
+        sync: false # Set manually in Render dashboard
+      - key: BASELINKER_API_URL
+        value: https://api.baselinker.com/connector.php
+      - key: GOOGLE_SERVICE_ACCOUNT_EMAIL
+        sync: false # Set manually in Render dashboard
+      - key: GOOGLE_PRIVATE_KEY
+        sync: false # Set manually in Render dashboard
+      - key: FRONTEND_URL
+        value: https://live-sales.onrender.com # Update with your Render URL
+      - key: LOG_LEVEL
+        value: info
