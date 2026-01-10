@@ -5,7 +5,7 @@ services:
     env: node
     plan: starter # Darmowy plan - 750h/miesiąc
     # IMPORTANT: Specify the root directory where package.json is located
-    rootDir: live-sales-v7
+    rootDirectory: live-sales-v7
     buildCommand: npm install
     startCommand: npm start
     healthCheckPath: /health
