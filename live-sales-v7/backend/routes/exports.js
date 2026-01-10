@@ -60,6 +60,7 @@ router.get('/:id', (req, res) => {
 router.post('/', (req, res) => {
   try {
     const config = req.body;
+    const userId = req.user.id; // From authMiddleware.authenticate()
 
     if (!config.id) {
       return res.status(400).json({
@@ -68,7 +69,7 @@ router.post('/', (req, res) => {
       });
     }
 
-    const savedConfig = exportService.saveExport(config.id, config);
+    const savedConfig = exportService.saveExport(config.id, config, userId);
 
     // Update scheduler if export is active
     if (savedConfig.status === 'active' && savedConfig.schedule_minutes) {
@@ -127,7 +128,8 @@ router.delete('/:id', (req, res) => {
  */
 router.post('/:id/run', async (req, res) => {
   try {
-    const result = await exportService.runExport(req.params.id);
+    const userId = req.user.id; // From authMiddleware.authenticate()
+    const result = await exportService.runExport(req.params.id, userId);
 
     res.json({
       success: true,
@@ -136,6 +138,7 @@ router.post('/:id/run', async (req, res) => {
   } catch (error) {
     logger.error('Failed to run export', {
       exportId: req.params.id,
+      userId: req.user?.id,
       error: error.message
     });
     res.status(500).json({
@@ -182,6 +185,7 @@ router.get('/:id/stats', (req, res) => {
  */
 router.post('/:id/toggle', (req, res) => {
   try {
+    const userId = req.user.id; // From authMiddleware.authenticate()
     const exportConfig = exportService.getExport(req.params.id);
 
     if (!exportConfig) {
@@ -195,7 +199,7 @@ router.post('/:id/toggle', (req, res) => {
     const newStatus = exportConfig.status === 'active' ? 'paused' : 'active';
     exportConfig.status = newStatus;
 
-    const savedConfig = exportService.saveExport(exportConfig.id, exportConfig);
+    const savedConfig = exportService.saveExport(exportConfig.id, exportConfig, userId);
 
     // Update scheduler
     if (newStatus === 'active' && savedConfig.schedule_minutes) {

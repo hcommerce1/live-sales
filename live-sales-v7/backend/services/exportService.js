@@ -1,6 +1,10 @@
 const baselinkerService = require('./baselinkerService');
 const googleSheetsService = require('./googleSheetsService');
 const logger = require('../utils/logger');
+const { PrismaClient } = require('@prisma/client');
+const crypto = require('../utils/crypto');
+
+const prisma = new PrismaClient();
 
 // In-memory storage for export configurations
 // In production, this should be replaced with a database
@@ -28,15 +32,17 @@ class ExportService {
    * Save export configuration
    * @param {string} exportId - Export ID
    * @param {object} config - Export configuration
+   * @param {string} userId - User ID (owner of the export)
    * @returns {object} - Saved export configuration
    */
-  saveExport(exportId, config) {
+  saveExport(exportId, config, userId = null) {
     exportConfigs[exportId] = {
       ...config,
       id: exportId,
+      userId: userId || config.userId, // Store userId with export
       updatedAt: new Date().toISOString(),
     };
-    logger.info(`Export configuration saved`, { exportId });
+    logger.info(`Export configuration saved`, { exportId, userId });
     return exportConfigs[exportId];
   }
 
@@ -57,23 +63,43 @@ class ExportService {
   /**
    * Run export - fetch data from Baselinker and write to Google Sheets
    * @param {string} exportId - Export ID
+   * @param {string} userId - User ID (to fetch BaseLinker token) - optional if stored in config
    * @returns {Promise<object>} - Export result
    */
-  async runExport(exportId) {
+  async runExport(exportId, userId = null) {
     const config = this.getExport(exportId);
     if (!config) {
       throw new Error(`Export configuration not found: ${exportId}`);
     }
 
-    logger.info(`Running export`, { exportId, dataset: config.dataset });
+    // Use userId from parameter or from config (for scheduled exports)
+    const effectiveUserId = userId || config.userId;
+    if (!effectiveUserId) {
+      throw new Error('User ID not available for this export');
+    }
+
+    logger.info(`Running export`, { exportId, userId: effectiveUserId, dataset: config.dataset });
 
     try {
+      // Fetch user's BaseLinker token from database
+      const user = await prisma.user.findUnique({
+        where: { id: effectiveUserId },
+        select: { baselinkerToken: true }
+      });
+
+      if (!user || !user.baselinkerToken) {
+        throw new Error('BaseLinker token not configured. Please add your token in the Configuration page.');
+      }
+
+      // Decrypt the token
+      const userToken = crypto.decrypt(user.baselinkerToken);
+
       // Fetch data from Baselinker
       let rawData = [];
       if (config.dataset === 'orders') {
-        rawData = await this.fetchOrders(config.filters || {});
+        rawData = await this.fetchOrders(userToken, config.filters || {});
       } else if (config.dataset === 'products') {
-        rawData = await this.fetchProducts(config.filters || {});
+        rawData = await this.fetchProducts(userToken, config.filters || {});
       } else {
         throw new Error(`Unknown dataset type: ${config.dataset}`);
       }
@@ -132,12 +158,13 @@ class ExportService {
 
   /**
    * Fetch orders from Baselinker
+   * @param {string} userToken - User's BaseLinker API token
    * @param {object} filters - Order filters
    * @returns {Promise<Array>} - List of orders
    */
-  async fetchOrders(filters) {
+  async fetchOrders(userToken, filters) {
     try {
-      const orders = await baselinkerService.getOrders(filters);
+      const orders = await baselinkerService.getOrders(userToken, filters);
 
       // Transform orders to flat structure
       const flatOrders = orders.map(order => ({
@@ -174,12 +201,14 @@ class ExportService {
 
   /**
    * Fetch products from Baselinker
+   * @param {string} userToken - User's BaseLinker API token
    * @param {object} filters - Product filters
    * @returns {Promise<Array>} - List of products
    */
-  async fetchProducts(filters) {
+  async fetchProducts(userToken, filters) {
     try {
       const products = await baselinkerService.getInventoryProductsList(
+        userToken,
         filters.inventory_id || 35072,
         filters
       );
@@ -187,7 +216,7 @@ class ExportService {
       // Get detailed product data if needed
       if (products.length > 0) {
         const productIds = products.map(p => p.product_id);
-        const detailedData = await baselinkerService.getInventoryProductsData(productIds);
+        const detailedData = await baselinkerService.getInventoryProductsData(userToken, productIds);
 
         // Merge list and detailed data
         return products.map(product => {

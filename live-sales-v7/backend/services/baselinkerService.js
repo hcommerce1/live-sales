@@ -5,24 +5,28 @@ const logger = require('../utils/logger');
 class BaselinkerService {
   constructor() {
     this.apiUrl = config.apiUrl;
-    this.apiToken = config.apiToken;
     this.timeout = config.timeout;
   }
 
   /**
    * Make API request to Baselinker
+   * @param {string} userToken - User's BaseLinker API token
    * @param {string} method - API method name
    * @param {object} parameters - Request parameters
    * @returns {Promise<object>} - API response
    */
-  async makeRequest(method, parameters = {}) {
+  async makeRequest(userToken, method, parameters = {}) {
     try {
+      if (!userToken) {
+        throw new Error('BaseLinker token is required. Please configure your token in Settings.');
+      }
+
       logger.info(`Baselinker API Request: ${method}`, { parameters });
 
       const response = await axios.post(
         this.apiUrl,
         new URLSearchParams({
-          token: this.apiToken,
+          token: userToken,
           method: method,
           parameters: JSON.stringify(parameters)
         }),
@@ -54,10 +58,11 @@ class BaselinkerService {
 
   /**
    * Get orders from Baselinker
+   * @param {string} userToken - User's BaseLinker API token
    * @param {object} filters - Order filters
    * @returns {Promise<Array>} - List of orders
    */
-  async getOrders(filters = {}) {
+  async getOrders(userToken, filters = {}) {
     const parameters = {
       date_confirmed_from: filters.date_from ? Math.floor(new Date(filters.date_from).getTime() / 1000) : null,
       date_confirmed_to: filters.date_to ? Math.floor(new Date(filters.date_to).getTime() / 1000) : null,
@@ -73,17 +78,18 @@ class BaselinkerService {
       }
     });
 
-    const response = await this.makeRequest('getOrders', parameters);
+    const response = await this.makeRequest(userToken, 'getOrders', parameters);
     return response.orders || [];
   }
 
   /**
    * Get products from inventory
+   * @param {string} userToken - User's BaseLinker API token
    * @param {number} inventoryId - Inventory ID
    * @param {object} filters - Product filters
    * @returns {Promise<Array>} - List of products
    */
-  async getInventoryProductsList(inventoryId = config.inventories.main, filters = {}) {
+  async getInventoryProductsList(userToken, inventoryId = config.inventories.main, filters = {}) {
     const parameters = {
       inventory_id: inventoryId,
       filter_id: filters.filter_id || null,
@@ -105,71 +111,76 @@ class BaselinkerService {
       }
     });
 
-    const response = await this.makeRequest('getInventoryProductsList', parameters);
+    const response = await this.makeRequest(userToken, 'getInventoryProductsList', parameters);
     return response.products || [];
   }
 
   /**
    * Get detailed product data
+   * @param {string} userToken - User's BaseLinker API token
    * @param {Array<number>} productIds - Array of product IDs
    * @param {number} inventoryId - Inventory ID
    * @returns {Promise<object>} - Product details
    */
-  async getInventoryProductsData(productIds, inventoryId = config.inventories.main) {
+  async getInventoryProductsData(userToken, productIds, inventoryId = config.inventories.main) {
     const parameters = {
       inventory_id: inventoryId,
       products: productIds
     };
 
-    const response = await this.makeRequest('getInventoryProductsData', parameters);
+    const response = await this.makeRequest(userToken, 'getInventoryProductsData', parameters);
     return response.products || {};
   }
 
   /**
    * Get inventory products stock
+   * @param {string} userToken - User's BaseLinker API token
    * @param {number} inventoryId - Inventory ID
    * @param {number} page - Page number
    * @returns {Promise<object>} - Products stock data
    */
-  async getInventoryProductsStock(inventoryId = config.inventories.main, page = 1) {
+  async getInventoryProductsStock(userToken, inventoryId = config.inventories.main, page = 1) {
     const parameters = {
       inventory_id: inventoryId,
       page: page
     };
 
-    const response = await this.makeRequest('getInventoryProductsStock', parameters);
+    const response = await this.makeRequest(userToken, 'getInventoryProductsStock', parameters);
     return response.products || {};
   }
 
   /**
    * Get order details
+   * @param {string} userToken - User's BaseLinker API token
    * @param {number} orderId - Order ID
    * @returns {Promise<object>} - Order details
    */
-  async getOrderDetails(orderId) {
+  async getOrderDetails(userToken, orderId) {
     const parameters = {
       order_id: orderId
     };
 
-    const response = await this.makeRequest('getOrderDetails', parameters);
+    const response = await this.makeRequest(userToken, 'getOrderDetails', parameters);
     return response.order || null;
   }
 
   /**
    * Get available order statuses
+   * @param {string} userToken - User's BaseLinker API token
    * @returns {Promise<Array>} - List of order statuses
    */
-  async getOrderStatusList() {
-    const response = await this.makeRequest('getOrderStatusList', {});
+  async getOrderStatusList(userToken) {
+    const response = await this.makeRequest(userToken, 'getOrderStatusList', {});
     return response.statuses || [];
   }
 
   /**
    * Get inventories list
+   * @param {string} userToken - User's BaseLinker API token
    * @returns {Promise<Array>} - List of inventories
    */
-  async getInventories() {
-    const response = await this.makeRequest('getInventories', {});
+  async getInventories(userToken) {
+    const response = await this.makeRequest(userToken, 'getInventories', {});
     return response.inventories || [];
   }
 }
