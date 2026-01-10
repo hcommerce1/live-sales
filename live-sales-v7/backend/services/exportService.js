@@ -4,7 +4,7 @@ const logger = require('../utils/logger');
 
 // In-memory storage for export configurations
 // In production, this should be replaced with a database
-let exports = {};
+let exportConfigs = {};
 
 class ExportService {
   /**
@@ -12,7 +12,7 @@ class ExportService {
    * @returns {Array} - List of exports
    */
   getAllExports() {
-    return Object.values(exports);
+    return Object.values(exportConfigs);
   }
 
   /**
@@ -21,7 +21,7 @@ class ExportService {
    * @returns {object|null} - Export configuration
    */
   getExport(exportId) {
-    return exports[exportId] || null;
+    return exportConfigs[exportId] || null;
   }
 
   /**
@@ -31,13 +31,13 @@ class ExportService {
    * @returns {object} - Saved export configuration
    */
   saveExport(exportId, config) {
-    exports[exportId] = {
+    exportConfigs[exportId] = {
       ...config,
       id: exportId,
       updatedAt: new Date().toISOString(),
     };
     logger.info(`Export configuration saved`, { exportId });
-    return exports[exportId];
+    return exportConfigs[exportId];
   }
 
   /**
@@ -46,8 +46,8 @@ class ExportService {
    * @returns {boolean} - True if deleted
    */
   deleteExport(exportId) {
-    if (exports[exportId]) {
-      delete exports[exportId];
+    if (exportConfigs[exportId]) {
+      delete exportConfigs[exportId];
       logger.info(`Export configuration deleted`, { exportId });
       return true;
     }
@@ -101,8 +101,8 @@ class ExportService {
       );
 
       // Update last run timestamp
-      exports[exportId].last_run = new Date().toISOString();
-      exports[exportId].status = 'active';
+      exportConfigs[exportId].last_run = new Date().toISOString();
+      exportConfigs[exportId].status = 'active';
 
       logger.info(`Export completed successfully`, {
         exportId,
@@ -121,9 +121,9 @@ class ExportService {
       });
 
       // Update export status
-      if (exports[exportId]) {
-        exports[exportId].status = 'error';
-        exports[exportId].lastError = error.message;
+      if (exportConfigs[exportId]) {
+        exportConfigs[exportId].status = 'error';
+        exportConfigs[exportId].lastError = error.message;
       }
 
       throw error;
@@ -305,7 +305,7 @@ class ExportService {
    * @returns {object} - Export statistics
    */
   getExportStats(exportId) {
-    const config = exports[exportId];
+    const config = exportConfigs[exportId];
     if (!config) {
       return null;
     }
