@@ -1,28 +1,77 @@
 services:
+  # PostgreSQL Database
+  - type: pserv
+    name: live-sales-db
+    plan: starter  # Free tier: 256MB RAM, 1GB storage
+    env: docker
+    region: frankfurt  # Choose your region
+    ipAllowList: []  # Allow connections from anywhere (Render internal network)
+
   # Web Service (Backend + Frontend)
   - type: web
     name: live-sales
     env: node
-    plan: starter # Darmowy plan - 750h/miesiąc
-    # IMPORTANT: Specify the root directory where package.json is located
+    plan: starter  # Free tier: 512MB RAM, 750h/month
+    region: frankfurt
     rootDirectory: live-sales-v7
-    buildCommand: npm install
+    buildCommand: npm install && npx prisma generate && npx prisma migrate deploy
     startCommand: npm start
     healthCheckPath: /health
     envVars:
+      # Server Configuration
       - key: NODE_ENV
         value: production
       - key: PORT
         value: 10000
-      - key: BASELINKER_API_TOKEN
-        sync: false # Set manually in Render dashboard
+
+      # Database (automatically set by Render when you link PostgreSQL)
+      - key: DATABASE_URL
+        fromDatabase:
+          name: live-sales-db
+          property: connectionString
+
+      # JWT Secrets (REQUIRED - Generate with: openssl rand -hex 32)
+      - key: JWT_ACCESS_SECRET
+        generateValue: true
+      - key: JWT_REFRESH_SECRET
+        generateValue: true
+
+      # Encryption Key (REQUIRED - Generate with: openssl rand -hex 32)
+      - key: ENCRYPTION_KEY
+        generateValue: true
+
+      # Password Pepper (REQUIRED - Generate with: openssl rand -hex 32)
+      - key: PASSWORD_PEPPER
+        generateValue: true
+
+      # Google Sheets API Configuration
+      - key: GOOGLE_SERVICE_ACCOUNT_EMAIL
+        sync: false  # Set manually in Render dashboard
+      - key: GOOGLE_PRIVATE_KEY
+        sync: false  # Set manually in Render dashboard
+
+      # Frontend URL (CORS Whitelist)
+      - key: FRONTEND_URL
+        value: https://live-sales-2gwm.onrender.com
+
+      # BaseLinker API
       - key: BASELINKER_API_URL
         value: https://api.baselinker.com/connector.php
-      - key: GOOGLE_SERVICE_ACCOUNT_EMAIL
-        sync: false # Set manually in Render dashboard
-      - key: GOOGLE_PRIVATE_KEY
-        sync: false # Set manually in Render dashboard
-      - key: FRONTEND_URL
-        value: https://live-sales.onrender.com # Update with your Render URL
+
+      # Logging
       - key: LOG_LEVEL
         value: info
+
+      # Redis (Optional - for rate limiting)
+      # Uncomment if you add Redis service
+      # - key: REDIS_URL
+      #   fromService:
+      #     type: redis
+      #     name: live-sales-redis
+      #     property: connectionString
+
+databases:
+  - name: live-sales-db
+    databaseName: livesales
+    user: livesales_user
+    plan: starter
