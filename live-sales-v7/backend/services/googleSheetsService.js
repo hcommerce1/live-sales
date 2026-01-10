@@ -222,6 +222,9 @@ class GoogleSheetsService {
     } catch (error) {
       logger.error('Failed to write data to Google Sheets', {
         error: error.message,
+        errorStack: error.stack,
+        errorCode: error.code,
+        errorResponse: error.response?.data,
         sheetUrl
       });
       throw error;
