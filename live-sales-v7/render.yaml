@@ -1,11 +1,11 @@
+databases:
+  - name: live-sales-db
+    databaseName: livesales
+    user: livesales_user
+    plan: starter
+    region: frankfurt
+
 services:
-  # PostgreSQL Database
-  - type: pserv
-    name: live-sales-db
-    plan: starter  # Free tier: 256MB RAM, 1GB storage
-    env: docker
-    region: frankfurt  # Choose your region
-    ipAllowList: []  # Allow connections from anywhere (Render internal network)
 
   # Web Service (Backend + Frontend)
   - type: web
@@ -13,7 +13,6 @@ services:
     env: node
     plan: starter  # Free tier: 512MB RAM, 750h/month
     region: frankfurt
-    rootDirectory: live-sales-v7
     buildCommand: npm install && npx prisma generate && npx prisma migrate deploy
     startCommand: npm start
     healthCheckPath: /health
@@ -69,9 +68,3 @@ services:
       #     type: redis
       #     name: live-sales-redis
       #     property: connectionString
-
-databases:
-  - name: live-sales-db
-    databaseName: livesales
-    user: livesales_user
-    plan: starter
