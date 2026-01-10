@@ -56,7 +56,14 @@ createApp({
 
             // Server data
             exportsListServer: [],
-            isLoading: false
+            isLoading: false,
+
+            // Configuration page
+            baselinkerToken: '',
+            showToken: false,
+            tokenSaved: false,
+            tokenSaveTimeout: null,
+            userEmail: ''
         };
     },
 
@@ -755,6 +762,92 @@ createApp({
 
         updateTime() {
             this.currentTime = new Date();
+        },
+
+        // ========== Configuration Methods ==========
+
+        async onTokenChange() {
+            // Clear previous timeout
+            if (this.tokenSaveTimeout) {
+                clearTimeout(this.tokenSaveTimeout);
+            }
+
+            // Auto-save after 1 second of no typing
+            this.tokenSaveTimeout = setTimeout(async () => {
+                await this.saveBaselinkerToken();
+            }, 1000);
+        },
+
+        async saveBaselinkerToken() {
+            if (!this.baselinkerToken || this.baselinkerToken.trim() === '') {
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/user/baselinker-token', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${localStorage.getItem('accessToken')}`
+                    },
+                    body: JSON.stringify({
+                        token: this.baselinkerToken
+                    })
+                });
+
+                if (!response.ok) {
+                    throw new Error('Failed to save token');
+                }
+
+                // Show success message
+                this.tokenSaved = true;
+                setTimeout(() => {
+                    this.tokenSaved = false;
+                }, 3000);
+            } catch (error) {
+                console.error('Error saving BaseLinker token:', error);
+                this.showToast('Błąd', 'Nie udało się zapisać tokenu', 'error');
+            }
+        },
+
+        async loadBaselinkerToken() {
+            try {
+                const response = await fetch('/api/user/baselinker-token', {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': `Bearer ${localStorage.getItem('accessToken')}`
+                    }
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    if (data.token) {
+                        this.baselinkerToken = data.token;
+                    }
+                }
+            } catch (error) {
+                console.error('Error loading BaseLinker token:', error);
+            }
+        },
+
+        async loadUserEmail() {
+            try {
+                const user = JSON.parse(localStorage.getItem('user') || '{}');
+                this.userEmail = user.email || 'demo@example.com';
+            } catch (error) {
+                console.error('Error loading user email:', error);
+                this.userEmail = 'demo@example.com';
+            }
+        },
+
+        logout() {
+            // Clear all auth data
+            localStorage.removeItem('accessToken');
+            localStorage.removeItem('refreshToken');
+            localStorage.removeItem('user');
+
+            // Redirect to login
+            window.location.href = '/login.html';
         }
     },
 
@@ -771,6 +864,10 @@ createApp({
             } else if (newPage === 'exports') {
                 // Load exports when switching to exports page
                 this.loadExportsFromServer();
+            } else if (newPage === 'config') {
+                // Load configuration data when switching to config page
+                this.loadBaselinkerToken();
+                this.loadUserEmail();
             }
         }
     },
@@ -790,6 +887,9 @@ createApp({
 
         // Load exports from server
         await this.loadExportsFromServer();
+
+        // Load user email for config page
+        await this.loadUserEmail();
 
         // Check server health
         try {

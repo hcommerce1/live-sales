@@ -12,6 +12,7 @@ dotenv.config();
 // Import routes
 const apiRoutes = require('./backend/routes/api');
 const authRoutes = require('./backend/routes/auth');
+const userRoutes = require('./backend/routes/user');
 const baselinkRoutes = require('./backend/routes/baselinker');
 const sheetsRoutes = require('./backend/routes/sheets');
 const exportsRoutes = require('./backend/routes/exports');
@@ -95,6 +96,7 @@ app.use(express.static(path.join(__dirname)));
 // API Routes
 app.use('/api/auth', authRoutes);  // Public auth routes
 app.use('/api', apiRoutes);
+app.use('/api/user', authMiddleware.authenticate(), userRoutes);            // Protected
 app.use('/api/baselinker', authMiddleware.authenticate(), baselinkRoutes);  // Protected
 app.use('/api/sheets', authMiddleware.authenticate(), sheetsRoutes);        // Protected
 app.use('/api/exports', authMiddleware.authenticate(), exportsRoutes);      // Protected
