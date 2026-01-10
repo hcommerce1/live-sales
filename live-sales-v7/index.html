@@ -115,6 +115,15 @@
     </style>
 </head>
 <body class="bg-gray-50">
+    <!-- Auth Guard - Check if user is logged in -->
+    <script src="frontend-api.js"></script>
+    <script>
+        // Check authentication before loading the app
+        if (!LiveSalesAPI.auth.isLoggedIn()) {
+            window.location.href = '/login.html';
+        }
+    </script>
+
     <div id="app" v-cloak>
         <!-- Sidebar -->
         <div class="fixed left-0 top-0 h-full w-64 bg-white border-r border-gray-200 flex flex-col shadow-sm z-50">
@@ -1030,7 +1039,6 @@
     </script>
 
     <script src="data.js"></script>
-    <script src="frontend-api.js"></script>
     <script src="app-backend.js"></script>
 </body>
 </html>
