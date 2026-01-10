@@ -2,6 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
 const compression = require('compression');
+const cookieParser = require('cookie-parser');
 const dotenv = require('dotenv');
 const path = require('path');
 
@@ -10,9 +11,14 @@ dotenv.config();
 
 // Import routes
 const apiRoutes = require('./backend/routes/api');
+const authRoutes = require('./backend/routes/auth');
 const baselinkRoutes = require('./backend/routes/baselinker');
 const sheetsRoutes = require('./backend/routes/sheets');
 const exportsRoutes = require('./backend/routes/exports');
+
+// Import middleware
+const { publicLimiter } = require('./backend/middleware/rateLimiter');
+const authMiddleware = require('./backend/middleware/auth');
 
 // Import scheduler
 const scheduler = require('./backend/scheduler');
@@ -24,26 +30,74 @@ const logger = require('./backend/utils/logger');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Middleware
+// Security Middleware
 app.use(helmet({
-  contentSecurityPolicy: false, // Disable for development, enable in production with proper config
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'", "'unsafe-inline'", "https://cdn.jsdelivr.net", "https://unpkg.com"],
+      styleSrc: ["'self'", "'unsafe-inline'", "https://cdn.jsdelivr.net"],
+      imgSrc: ["'self'", "data:", "https:"],
+      connectSrc: ["'self'", process.env.FRONTEND_URL || "*"],
+    },
+  },
+  hsts: {
+    maxAge: 31536000,
+    includeSubDomains: true,
+    preload: true,
+  },
 }));
+
 app.use(compression());
+
+// CORS Configuration - WHITELIST ONLY
+const allowedOrigins = process.env.FRONTEND_URL
+  ? process.env.FRONTEND_URL.split(',').map(origin => origin.trim())
+  : ['http://localhost:3000', 'http://localhost:5173'];
+
 app.use(cors({
-  origin: process.env.FRONTEND_URL || '*',
-  credentials: true
+  origin: (origin, callback) => {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+
+    if (allowedOrigins.indexOf(origin) !== -1 || process.env.NODE_ENV === 'development') {
+      callback(null, true);
+    } else {
+      logger.warn('CORS blocked request', { origin });
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
 }));
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+
+app.use(cookieParser());
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
+// Apply rate limiting to all routes
+app.use(publicLimiter);
+
+// Request logging
+app.use((req, res, next) => {
+  logger.debug('Incoming request', {
+    method: req.method,
+    path: req.path,
+    ip: req.ip,
+  });
+  next();
+});
 
 // Serve static files (frontend)
 app.use(express.static(path.join(__dirname)));
 
 // API Routes
+app.use('/api/auth', authRoutes);  // Public auth routes
 app.use('/api', apiRoutes);
-app.use('/api/baselinker', baselinkRoutes);
-app.use('/api/sheets', sheetsRoutes);
-app.use('/api/exports', exportsRoutes);
+app.use('/api/baselinker', authMiddleware.authenticate(), baselinkRoutes);  // Protected
+app.use('/api/sheets', authMiddleware.authenticate(), sheetsRoutes);        // Protected
+app.use('/api/exports', authMiddleware.authenticate(), exportsRoutes);      // Protected
 
 // Health check endpoint
 app.get('/health', (req, res) => {

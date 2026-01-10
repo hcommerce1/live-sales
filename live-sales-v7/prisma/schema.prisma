@@ -1,0 +1,131 @@
+// Prisma Schema for Live Sales Application
+// Database: PostgreSQL
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// User model for authentication
+model User {
+  id              String   @id @default(uuid())
+  email           String   @unique
+  password        String   // Argon2id hashed
+  role            String   @default("user") // user, admin
+  isActive        Boolean  @default(true)
+  emailVerified   Boolean  @default(false)
+  twoFactorSecret String?  // TOTP secret
+  twoFactorEnabled Boolean @default(false)
+
+  // Metadata
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  lastLoginAt     DateTime?
+
+  // Relations
+  exports         Export[]
+  auditLogs       AuditLog[]
+  refreshTokens   RefreshToken[]
+
+  @@map("users")
+}
+
+// Refresh tokens for JWT rotation
+model RefreshToken {
+  id          String   @id @default(uuid())
+  token       String   @unique
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt   DateTime
+  createdAt   DateTime @default(now())
+  revoked     Boolean  @default(false)
+
+  @@map("refresh_tokens")
+  @@index([userId])
+  @@index([token])
+}
+
+// Export configuration model
+model Export {
+  id              String   @id @default(uuid())
+  userId          String
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  name            String
+  dataset         String   // 'orders' or 'products'
+  status          String   @default("active") // active, paused, error
+
+  // Filters (stored as JSON)
+  filters         Json?
+
+  // Selected fields (array of field keys)
+  selectedFields  Json
+
+  // BaseLinker API token (encrypted with AES-256-GCM)
+  baselinkerToken String
+
+  // Google Sheets configuration
+  sheetsUrl       String
+  sheetsWriteMode String   @default("append") // append, replace
+
+  // Scheduling
+  scheduleMinutes Int?
+  lastRun         DateTime?
+
+  // Metadata
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@map("exports")
+  @@index([userId])
+  @@index([status])
+}
+
+// Audit log for security tracking
+model AuditLog {
+  id          String   @id @default(uuid())
+  userId      String?
+  user        User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  action      String   // LOGIN, LOGOUT, CREATE_EXPORT, DELETE_EXPORT, etc.
+  resource    String?  // Resource type (export, user, etc.)
+  resourceId  String?  // ID of affected resource
+
+  // Request metadata
+  ipAddress   String?
+  userAgent   String?
+
+  // Additional context
+  metadata    Json?
+
+  // Outcome
+  success     Boolean  @default(true)
+  errorMessage String?
+
+  createdAt   DateTime @default(now())
+
+  @@map("audit_logs")
+  @@index([userId])
+  @@index([action])
+  @@index([createdAt])
+}
+
+// API Keys for programmatic access (future feature)
+model ApiKey {
+  id          String   @id @default(uuid())
+  userId      String
+  name        String
+  keyHash     String   @unique // SHA-256 hash of the key
+  lastUsedAt  DateTime?
+  expiresAt   DateTime?
+  createdAt   DateTime @default(now())
+  revoked     Boolean  @default(false)
+
+  @@map("api_keys")
+  @@index([userId])
+  @@index([keyHash])
+}
