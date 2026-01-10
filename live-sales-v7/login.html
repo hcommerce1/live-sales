@@ -485,11 +485,18 @@
                     this.alert.show = false;
                 }
             },
-            mounted() {
-                // Redirect if already logged in
-                const token = localStorage.getItem('accessToken');
-                if (token) {
-                    window.location.href = '/';
+            async mounted() {
+                // Check if already logged in with valid token
+                if (LiveSalesAPI.auth.isLoggedIn()) {
+                    try {
+                        // Verify token is valid by calling API
+                        await LiveSalesAPI.auth.getCurrentUser();
+                        // Token is valid, redirect to app
+                        window.location.href = '/';
+                    } catch (error) {
+                        // Token is invalid, clear it
+                        LiveSalesAPI.clearAuth();
+                    }
                 }
             }
         }).mount('#app');
