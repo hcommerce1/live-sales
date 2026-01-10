@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { PrismaClient } = require('@prisma/client');
 const { authenticateToken } = require('../middleware/auth');
-const { encrypt, decrypt } = require('../utils/encryption');
+const crypto = require('../utils/crypto');
 const logger = require('../utils/logger');
 
 const prisma = new PrismaClient();
@@ -24,7 +24,7 @@ router.post('/baselinker-token', authenticateToken, async (req, res) => {
     }
 
     // Encrypt the token with AES-256-GCM
-    const encryptedToken = encrypt(token);
+    const encryptedToken = crypto.encrypt(token);
 
     // Update user record
     await prisma.user.update({
@@ -77,7 +77,7 @@ router.get('/baselinker-token', authenticateToken, async (req, res) => {
     }
 
     // Decrypt the token
-    const decryptedToken = decrypt(user.baselinkerToken);
+    const decryptedToken = crypto.decrypt(user.baselinkerToken);
 
     res.json({
       token: decryptedToken
