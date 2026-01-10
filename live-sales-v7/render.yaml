@@ -13,8 +13,8 @@ services:
     env: node
     plan: starter  # Free tier: 512MB RAM, 750h/month
     region: frankfurt
-    buildCommand: npm install && npx prisma generate && npx prisma migrate deploy
-    startCommand: npm start
+    buildCommand: cd live-sales-v7 && npm install && npx prisma generate && npx prisma migrate deploy
+    startCommand: cd live-sales-v7 && npm start
     healthCheckPath: /health
     envVars:
       # Server Configuration
