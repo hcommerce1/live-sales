@@ -1,0 +1,236 @@
+getOrders
+The method allows you to download orders from a specific date from the BaseLinker order manager. The order list can be limited using the filters described in the method parameters. A maximum of 100 orders are returned at a time.
+
+It is recommended to download only confirmed orders (get_unconfirmed_orders = false). Unconfirmed orders may be incomplete. The user may be, for example, in the process of creating an order - it already exists in the database, but not all information is completed. Unconfirmed orders may contain only a partial list of products and may be changed soon. Confirmed orders usually do not change anymore and can be safely downloaded to an external system.
+
+The best way to download the ongoing orders is:
+Collecting new order identifiers using getJournalList.
+
+Or, using this method:
+1. Setting the starting date and specifying it in the date_confirmed_from field
+2. Processing of all received orders. If 100 orders are received, there may be even more to download.
+3. Downloading the next package of orders by entering the value of the date_confirmed field from last downloaded order in the date_confirmed_from field. In order to avoid downloading the same orders value of date_confirmed should be increased by 1 second. This operation is repeated until you receive a package with less than 100 orders (this means that there are no more orders left to download).
+4. Saving the date_confirmed last processed order. You can download orders from this date onwards so that you do not download the same order twice. It is not possible for an order to 'jump' into the database with an earlier confirmation date. This way you can be sure that all confirmed orders have been downloaded.
+
+
+Input parameters
+order_id	int	(optional) Order identifier. Completing this field will download information about only one specific order.
+date_confirmed_from	int	(optional) Date of order confirmation from which orders are to be collected. Format unix time stamp.
+date_from	int	(optional) The order date from which orders are to be collected. Format unix time stamp.
+id_from	int	(optional) The order ID number from which subsequent orders are to be collected.
+get_unconfirmed_orders	bool	(optional, false by default) Download unconfirmed orders as well (this is e.g. an order from Allegro to which the customer has not yet completed the delivery form). Default is false. Unconfirmed orders may not be complete yet, the shipping method and price is also unknown.
+status_id	int	(optional) The status identifier from which orders are to be collected. Leave blank to download orders from all statuses.
+filter_email	varchar(50)	(optional) Filtering of order lists by e-mail address (displays only orders with the given e-mail address).
+filter_order_source	varchar(20)	(optional) Filtering of order lists by order source, for instance "ebay", "amazon" (displays only orders come from given source). The list of order sources can be retrieved with getOrderSources method.
+filter_order_source_id	int	(optional) Filtering of order lists by order source identifier, for instance "2523" (displays only orders come from order source defined in "filter_order_source" identified by given order source identifier). Filtering by order source indentifier requires "filter_order_source" to be set prior. The list of order source identifiers can be retrieved with getOrderSources method.
+filter_shop_order_id	int	(optional) Shop Order identifier. Completing this field will download information about specific orders.
+include_custom_extra_fields	bool	(optional, false by default) Download values of custom additional fields.
+include_commission_data	bool	(optional, false by default) Download orders with commission information. If set to true, the response will contain additional "commission" field.
+include_connect_data	bool	(optional, false by default) Base Connect and contractor data.
+
+
+
+Output data
+The method returns the data in JSON format.
+status	varchar(30)	SUCCESS - request executed correctly
+ERROR - an error occurred during an API request. Error details will be described in 2 additional returned fields: error_message and error_code
+orders	array	An array of information about the orders found. Each order is described by the fields listed below.
+order_id	int	Order Identifier from BaseLinker order manager
+shop_order_id	int	Order ID given by the store
+external_order_id	varchar(50)	An order identifier taken from an external source. e.g. the order number in the store, or the eBay transaction number.
+order_source	varchar(20)	Order source - available values: "shop", "personal", "order_return" or "marketplace_code" e.g. "ebay", "amazon", "ceneo", "emag", "allegro", etc.
+order_source_id	int	Source ID (e.g. internal allegro account ID, internal shop ID, etc.). Unique only in combination with the "order_source" field (e.g. an ebay account and an allegro account may have the same ID, but two ebay accounts always have different IDs)
+order_source_info	varchar(200)	Description of the order source - e.g. shop address or eBay seller nickname (field currently unavailable!)
+order_status_id	int	Order status (the list available to retrieve with getOrderStatusList)
+date_add	int	Date of order creation (in unix time format)
+date_confirmed	int	Order confirmation date if confirmed (unix time format)
+date_in_status	int	Date from which the order is in current status (unix time format)
+confirmed	bool	Flag indicating if the order is confirmed.
+user_login	varchar(100)	Allegro or eBay user login
+currency	char(3)	3-letter currency symbol (e.g. EUR, PLN)
+payment_method	varchar(100)	Payment method
+payment_method_cod	varchar(1)	Flag indicating whether the type of payment is COD (cash on delivery): "1" - yes, "0" - no
+payment_done	float	Amount paid
+user_comments	varchar(1000)	Buyer comments
+admin_comments	varchar(200)	Seller comments
+email	varchar(150)	Buyer e-mail address
+phone	varchar(100)	Buyer phone number
+delivery_method_id	int	Delivery method ID
+delivery_method	varchar(100)	Delivery method name
+delivery_price	float	Gross delivery price
+delivery_package_module	varchar(20)	Courier name (if the shipment was created)
+delivery_package_nr	varchar(40)	Shipping number (if the shipment was created)
+delivery_fullname	varchar(100)	Delivery address - name and surname
+delivery_company	varchar(100)	Delivery address - company
+delivery_address	varchar(156)	Delivery address - street and number
+delivery_postcode	varchar(100)	Delivery address - postcode
+delivery_city	varchar(100)	Delivery address - city
+delivery_state	varchar(35)	Delivery address - state/province
+delivery_country	varchar(50)	Delivery address - country
+delivery_country_code	char(2)	Delivery address - country code (two-letter, e.g. EN)
+delivery_point_id	varchar(40)	Pick-up point delivery - pick-up point identifier
+delivery_point_name	varchar(100)	Pick-up point delivery - pick-up point name
+delivery_point_address	varchar(100)	Pick-up point delivery - pick-up point address
+delivery_point_postcode	varchar(100)	Pick-up point delivery - pick-up point postcode
+delivery_point_city	varchar(100)	Pick-up point delivery - pick-up point city
+invoice_fullname	varchar(200)	Billing details - name and surname
+invoice_company	varchar(200)	Billing details - company
+invoice_nip	varchar(100)	Billing details - Vat Reg. no./tax number
+invoice_address	varchar(250)	Billing details - street and house number
+invoice_postcode	varchar(20)	Billing details - postcode
+invoice_city	varchar(100)	Billing details - city
+invoice_state	varchar(35)	Billing details - state/province
+invoice_country	varchar(50)	Billing details - country
+invoice_country_code	char(2)	Billing details - country code (two-letter, e.g. EN)
+want_invoice	varchar(1)	Flag indicating whether the customer wants an invoice: "1" - yes, "0" - no
+extra_field_1	varchar(50)	Value of the "extra field 1". - the seller can store any information there
+extra_field_2	varchar(50)	Value of the "extra field 2". - the seller can store any information there
+custom_extra_fields	array	A list containing order custom extra fields returned only if the input parameters include_custom_extra_fields is set to true, where the key is the extra field ID and value is an extra field content for given extra field. The list of extra fields can be retrieved with getOrderExtraFields method.
+In case of file the following format is returned as value:
+{
+    "title": "file.pdf" (varchar(40) - the file name)
+    "url": "https://upload.cdn.baselinker.com/order_extra_files/23/caa37889b042cb92b4fed8677423893f.pdf" (url - the file url)
+}
+order_page	varchar(150)	Order information page address
+pick_state	int	Flag indicating the status of the order products collection (1 - all products have been collected, 0 - not all products have been collected)
+pack_state	int	Flag indicating the status of the order products packing (1 - all products have been packed, 0 - not all products have been packed)
+commission	array	The commission that the marketplace charges for an order. Contains fields:
+net (float) - net commission amount
+gross (float) - gross commission amount
+currency (varchar(3)) - currency code of the commission
+connect_data	array	Data from Base Connect linked to the order. Contains fields:
+connect_integration_id (int) - Base Connect integration ID
+connect_contractor_id (int) - Base Connect contractor ID
+products	array	An array of order products. Each element of the array is also an array containing fields:
+storage (varchar(9)) - type of product source storage (available values: "db" - BaseLinker internal inventory, "shop" - online shop storage, "warehouse" - the connected wholesaler)
+storage_id (int) - the identifier of the storage (inventory/shop/warehouse) from which the product comes.
+order_product_id (int) - ID of order item from BaseLinker order manager
+product_id (varchar(50)) - product identifier in BaseLinker or shop storage. Blank if the product number is unknown
+variant_id (varchar(30)) - Product variant ID. Blank if the variant number is unknown
+name (varchar(130)) - Product name
+sku (varchar(50)) - Product sku
+ean (varchar(32)) - Product ean
+location (varchar(50)) - Product location
+warehouse_id (int) - Product source warehouse identifier. Only applies to products from BaseLinker inventory.
+auction_id (varchar(50)) - Listing ID number (if the order comes from ebay/allegro)
+attributes (varchar(350)) - The detailed product attributes, e.g. "Colour: blue" (Variant name)
+price_brutto (float) - Single item gross price
+tax_rate (float) - VAT tax rate e.g. "23", (value from range 0-100, EXCEPTION values: "-1" for "EXPT"/"ZW" exempt from VAT, "-0.02" for "NP" annotation, "-0.03" for "OO" VAT reverse charge)
+quantity (int) - Quantity of pieces
+weight (float) - Single item weight
+bundle_id (int) - ID of the bundle that was split to aquire this order item. Only applies to bundles from BaseLinker inventory. Returns 0 if the product was not aquired from splitting a bundle.
+
+
+
+Sample
+Input data:
+{
+    "date_confirmed_from": 1407341754,
+    "get_unconfirmed_orders": false
+}
+ Output data:
+{
+  "status": "SUCCESS",
+  "orders": [
+    {
+      "order_id": 1630473,
+      "shop_order_id": 2824,
+      "external_order_id": "534534234",
+      "order_source": "amazon",
+      "order_source_id": 2598,
+      "order_source_info": "-",
+      "order_status_id": 6624,
+      "date_add": 1407841161,
+      "date_confirmed": 1407841256,
+      "date_in_status": 1407841256,
+      "user_login": "nick123",
+      "phone": "693123123",
+      "email": "test@test.com",
+      "user_comments": "User comment",
+      "admin_comments": "Seller test comments",
+      "currency": "GBP",
+      "payment_method": "PayPal",
+      "payment_method_cod": "0",
+      "payment_done": "50",
+      "delivery_method": "Expedited shipping",
+      "delivery_price": 10,
+      "delivery_package_module": "other",
+      "delivery_package_nr": "0042348723648234",
+      "delivery_fullname": "John Doe",
+      "delivery_company": "Company",
+      "delivery_address": "Long Str 12",
+      "delivery_city": "London",
+      "delivery_state": "",
+      "delivery_postcode": "E2 8HQ",
+      "delivery_country": "Great Britain",
+      "delivery_point_id": "",
+      "delivery_point_name": "",
+      "delivery_point_address": "",
+      "delivery_point_postcode": "",
+      "delivery_point_city": "",
+      "invoice_fullname": "John Doe",
+      "invoice_company": "Company",
+      "invoice_nip": "GB8943245",
+      "invoice_address": "Long Str 12",
+      "invoice_city": "London",
+      "invoice_state": "",
+      "invoice_postcode": "E2 8HQ",
+      "invoice_country": "Great Britain",
+      "want_invoice": "0",
+      "extra_field_1": "",
+      "extra_field_2": "",
+      "custom_extra_fields": {
+          "135": "B2B",
+          "172": "1646913115"
+      },
+      "order_page": "https://klient.baselinker.com/1630473/4ceca0d940/",
+      "pick_status": "1",
+      "pack_status": "0",
+      "commission": {
+          "net": 12.5,
+          "gross": 15.38,
+          "currency": "USD"
+      },
+      "connect_data": {
+          "connect_integration_id": 1,
+          "connect_contractor_id": 34
+      },
+      "products": [
+        {
+          "storage": "shop"
+          "storage_id": 1,
+          "order_product_id": 154904741,
+          "product_id": "5434",
+          "variant_id": 52124,
+          "name": "Harry Potter and the Chamber of Secrets",
+          "attributes": "Colour: green",
+          "sku": "LU4235",
+          "ean": "1597368451236",
+          "location": "A1-13-7",
+          "auction_id": "0",
+          "price_brutto": 20.00,
+          "tax_rate": 23,
+          "quantity": 2,
+          "weight": 1,
+          "bundle_id": 0
+        }
+      ]
+    }
+  ]
+}
+ A sample request in PHP:
+<?php
+$methodParams = '{
+    "date_confirmed_from": 1407341754,
+    "get_unconfirmed_orders": false
+}';
+$apiParams = [
+    "method" => "getOrders",
+    "parameters" => $methodParams
+];
+
+$curl = curl_init("https://api.baselinker.com/connector.php");
+curl_setopt($curl, CURLOPT_POST, 1);
+curl_setopt($curl, CURLOPT_HTTPHEADER, ["X-BLToken: xxx"]);
+curl_setopt($curl, CURLOPT_POSTFIELDS, http_build_query($apiParams));
+$response = curl_exec($curl);

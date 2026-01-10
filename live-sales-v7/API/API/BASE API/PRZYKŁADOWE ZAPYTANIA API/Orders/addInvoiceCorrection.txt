@@ -1,0 +1,121 @@
+addInvoiceCorrection
+The method allows to issue an order invoice correction.
+Either original_invoice_id or return_order_id must be provided.
+If return_order_id is provided, all other fields will be ignored (except series_id) and invoice will be created with data from the return order.
+If field is optional and not provided, it will be set according to the series settings or default values.
+
+
+Input parameters
+original_invoice_id	int	Original invoice identifier
+return_order_id	int	Return order identifier
+series_id	int	(optional) Series numbering identifier
+date_sell	int	(optional) Sell date in unix timestamp
+correcting_reason	int	(optional) Reason for correction
+- 1: prepayments return
+- 2: compulsory discounts
+- 3: price increase after invoicing
+- 4: refund the buyer the amount of undue
+- 5: return the goods
+- 6: mistakes as to price, rate, amount of tax on invoices or position
+- 7: correcting buyer's address
+- 8: withdrawal from the contract
+- 9: other reason - fill in in the comments
+correcting_items	bool	(optional) Whether to correct invoice items (0 - no, 1 - yes)
+correcting_data	bool	(optional) Whether to correct invoice data (0 - no, 1 - yes)
+invoice_fullname	string	(optional) Full name for the invoice
+invoice_company	string	(optional) Company name
+invoice_address	string	(optional) Address
+invoice_postcode	string	(optional) Postal code
+invoice_city	string	(optional) City
+invoice_state	string	(optional) State/Province
+invoice_country_code	string	(optional) Country code (e.g. PL)
+invoice_nip	string	(optional) Tax ID number
+items	array	(optional) Array of items to correct. If order_product_id is not provided, item will be added as new position at the end
+fv_payment	string	(optional) Payment method
+fv_person	string	(optional) Issuer name
+
+
+
+Output data
+The method returns the data in JSON format.
+status	varchar(30)	SUCCESS - request executed correctly
+ERROR - an error occurred during an API request. Error details will be described in 2 additional returned fields: error_message and error_code
+invoice_id	int	ID of the added invoice.
+
+
+
+Sample
+Input data:
+{
+    "original_invoice_id": 1,
+    "series_id": 2,
+    "date_sell": 1407341754,
+    "correcting_reason": 1,
+    "correcting_items": 1,
+    "correcting_data": 1,
+    "invoice_fullname": "John Doe",
+    "invoice_company": "Big Company",
+    "invoice_address": "Street 10",
+    "invoice_postcode": "01-234",
+    "invoice_city": "Warsaw",
+    "invoice_state": "Masovian",
+    "invoice_country_code": "PL",
+    "invoice_nip": "1234567890",
+    "items": [
+        {
+            "item_name": "Test Product",
+            "item_sku": "TestProductSku",
+            "item_ean": "12345678",
+            "item_quantity": 1,
+            "item_price_brutto": 25.00,
+            "item_tax_rate": 19.00
+        }
+    ],
+    "fv_payment": "Transfer",
+    "fv_person": "Kierownik"
+}
+ Output data:
+{
+    "status": "SUCCESS",
+    "invoice_id": 19824373
+}
+ A sample request in PHP:
+<?php
+$methodParams = '{
+    "original_invoice_id": 1,
+    "series_id": 2,
+    "date_sell": 1407341754,
+    "correcting_reason": 1,
+    "correcting_items": 1,
+    "correcting_data": 1,
+    "invoice_fullname": "John Doe",
+    "invoice_company": "Big Company",
+    "invoice_address": "Street 10",
+    "invoice_postcode": "01-234",
+    "invoice_city": "Warsaw",
+    "invoice_state": "Masovian",
+    "invoice_country_code": "PL",
+    "invoice_nip": "1234567890",
+    "items": [
+        {
+            "item_name": "Test Product",
+            "item_sku": "TestProductSku",
+            "item_ean": "12345678",
+            "item_quantity": 1,
+            "item_price_brutto": 25,
+            "item_tax_rate": 19
+        }
+    ],
+    "fv_payment": "Transfer",
+    "fv_person": "Kierownik"
+}';
+$apiParams = [
+    "method" => "addInvoiceCorrection",
+    "parameters" => $methodParams
+];
+
+$curl = curl_init("https://api.baselinker.com/connector.php");
+curl_setopt($curl, CURLOPT_POST, 1);
+curl_setopt($curl, CURLOPT_HTTPHEADER, ["X-BLToken: xxx"]);
+curl_setopt($curl, CURLOPT_POSTFIELDS, http_build_query($apiParams));
+$response = curl_exec($curl);

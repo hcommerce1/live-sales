@@ -1,0 +1,85 @@
+getExternalStorageProductsList
+The method allows to retrieve detailed data of selected products from an external storage (shop/wholesaler) connected to BaseLinker.
+
+
+Input parameters
+storage_id	varchar(30)	Storage ID in format "[type:shop|warehouse]_[id:int]" (e.g. "shop_2445").
+filter_category_id	varchar(30)	(optional) Retrieving products from a specific category (optional)
+filter_sort	varchar(30)	(optional) the value for sorting the product list. Possible values: "id [ASC|DESC]", "name [ASC|DESC]", "quantity [ASC|DESC]", "price [ASC|DESC]"
+filter_id	varchar(30)	(optional) limiting results to a specific product id
+filter_sku	varchar(32)	(optional) limiting the results to a specific SKU (stock keeping number)
+filter_ean	varchar(320)	(optional) limiting results to a specific ean
+filter_asin	varchar(50)	(optional) limiting results to a specific asin
+filter_name	varchar(100)	(optional) item name filter (part of the searched name or an empty field)
+filter_price_from	float	(optional) minimum price limit (not displaying products with lower price)
+filter_price_to	float	(optional) maximum price limit
+filter_quantity_from	int	(optional) minimum quantity limit
+filter_quantity_to	int	(optional) maximum quantity limit
+filter_available	int	(optional) displaying only products marked as available (value 1) or not available (0) or all (empty value)
+page	int	(optional) Results paging
+
+
+
+Output data
+The method returns the data in JSON format.
+status	varchar(30)	SUCCESS - request executed correctly
+ERROR - an error occurred during an API request. Error details will be described in 2 additional returned fields: error_message and error_code
+storage_id	varchar(30)	Storage ID in format "[type:shop|warehouse]_[id:int]" (e.g. "shop_2445").
+products	array	An array of products containig the fields listed below
+| - product_id	varchar(30)	The main Product ID.
+| - sku	varchar(32)	Product SKU number.
+| - ean	varchar(32)	Product EAN number.
+| - asin	varchar(50)	Product ASIN number.
+| - name	varchar(200)	Product name
+| - quantity	int	Stock quantity
+| - price_brutto	float	Product gross price (net price is not available from this function).
+
+
+
+Sample
+Input data:
+{
+    "storage_id": "shop_2445",
+    "filter_category_id": 543
+}
+ Output data:
+{
+    "status": "SUCCESS",
+    "storage_id": "shop_2445",
+    "products": [
+        {
+            "product_id": "2546",
+            "sku": "PL53F",
+            "ean": "63576363463",
+            "asin": "B07EXAMPLE3",
+            "name": "Nike PL35 shoes",
+            "quantity": 5,
+            "price_brutto": 254.55
+        },
+        {
+            "product_id": "6532",
+            "sku": "ZF55F",
+            "ean": "6345623525",
+            "asin": "B07EXAMPLE4",
+            "name": "Adidas ZF3 shoes",
+            "quantity": 2,
+            "price_brutto": 455.76
+        }
+    ]
+}
+ A sample request in PHP:
+<?php
+$methodParams = '{
+    "storage_id": "shop_2445",
+    "filter_category_id": 543
+}';
+$apiParams = [
+    "method" => "getExternalStorageProductsList",
+    "parameters" => $methodParams
+];
+
+$curl = curl_init("https://api.baselinker.com/connector.php");
+curl_setopt($curl, CURLOPT_POST, 1);
+curl_setopt($curl, CURLOPT_HTTPHEADER, ["X-BLToken: xxx"]);
+curl_setopt($curl, CURLOPT_POSTFIELDS, http_build_query($apiParams));
+$response = curl_exec($curl);
