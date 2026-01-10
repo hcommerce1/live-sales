@@ -48,11 +48,13 @@ class GoogleSheetsService {
 
   /**
    * Extract GID (sub-sheet ID) from URL
+   * Supports both ?gid= and #gid= formats
    * @param {string} url - Google Sheets URL
    * @returns {string|null} - GID if present, null otherwise
    */
   extractGid(url) {
-    const match = url.match(/#gid=(\d+)/);
+    // Support both ?gid= and #gid= formats (Google uses both)
+    const match = url.match(/[?#]gid=(\d+)/);
     return match ? match[1] : null;
   }
 
