@@ -13,19 +13,27 @@ const prisma = new PrismaClient();
  */
 router.post('/baselinker-token', authMiddleware.authenticate(), async (req, res) => {
   try {
+    logger.info('BaseLinker token save request received', {
+      userId: req.user?.id,
+      hasToken: !!req.body.token
+    });
+
     const { token } = req.body;
     const userId = req.user.id;
 
     if (!token || typeof token !== 'string' || token.trim() === '') {
+      logger.warn('Invalid token provided', { userId });
       return res.status(400).json({
         error: 'Invalid token',
         code: 'INVALID_TOKEN'
       });
     }
 
+    logger.info('Encrypting BaseLinker token', { userId });
     // Encrypt the token with AES-256-GCM
     const encryptedToken = crypto.encrypt(token);
 
+    logger.info('Updating user record in database', { userId });
     // Update user record
     await prisma.user.update({
       where: { id: userId },
@@ -35,7 +43,7 @@ router.post('/baselinker-token', authMiddleware.authenticate(), async (req, res)
       }
     });
 
-    logger.info('BaseLinker token saved', {
+    logger.info('BaseLinker token saved successfully', {
       userId,
       action: 'SAVE_BASELINKER_TOKEN'
     });
@@ -48,7 +56,9 @@ router.post('/baselinker-token', authMiddleware.authenticate(), async (req, res)
     logger.error('Error saving BaseLinker token', {
       error: error.message,
       stack: error.stack,
-      userId: req.user?.id
+      userId: req.user?.id,
+      errorName: error.name,
+      errorCode: error.code
     });
 
     res.status(500).json({
