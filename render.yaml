@@ -1,11 +1,11 @@
 services:
   # PostgreSQL Database
-  - type: pserv
+  - type: postgres
     name: live-sales-db
     plan: starter  # Free tier: 256MB RAM, 1GB storage
-    env: docker
-    region: frankfurt  # Choose your region
-    ipAllowList: []  # Allow connections from anywhere (Render internal network)
+    region: frankfurt
+    databaseName: livesales
+    databaseUser: livesales_user
 
   # Web Service (Backend + Frontend)
   - type: web
@@ -69,9 +69,3 @@ services:
       #     type: redis
       #     name: live-sales-redis
       #     property: connectionString
-
-databases:
-  - name: live-sales-db
-    databaseName: livesales
-    user: livesales_user
-    plan: starter
