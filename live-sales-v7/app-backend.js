@@ -497,11 +497,21 @@ createApp({
                 return;
             }
 
+            // Support both formats:
+            // 1. https://docs.google.com/spreadsheets/d/{SPREADSHEET_ID}/edit
+            // 2. https://docs.google.com/spreadsheets/d/{SPREADSHEET_ID}/edit#gid={GID}
             const pattern = /https:\/\/docs\.google\.com\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/;
             const match = url.match(pattern);
 
             if (match) {
                 this.extractedSheetId = match[1];
+
+                // Extract GID if present (e.g., #gid=123456)
+                const gidMatch = url.match(/#gid=(\d+)/);
+                if (gidMatch) {
+                    this.extractedSheetId += ` (Sheet ID: ${gidMatch[1]})`;
+                }
+
                 // Validate on server
                 this.validateSheetUrlOnServer();
             } else {
