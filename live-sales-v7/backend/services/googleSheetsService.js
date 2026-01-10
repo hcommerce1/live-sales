@@ -19,6 +19,12 @@ class GoogleSheetsService {
         return;
       }
 
+      logger.info('Initializing Google Sheets auth', {
+        email: config.serviceAccountEmail,
+        keyLength: config.privateKey?.length,
+        keyStart: config.privateKey?.substring(0, 30)
+      });
+
       this.auth = new google.auth.JWT({
         email: config.serviceAccountEmail,
         key: config.privateKey,
@@ -28,7 +34,10 @@ class GoogleSheetsService {
       this.sheets = google.sheets({ version: 'v4', auth: this.auth });
       logger.info('Google Sheets API initialized successfully');
     } catch (error) {
-      logger.error('Failed to initialize Google Sheets API', { error: error.message });
+      logger.error('Failed to initialize Google Sheets API', {
+        error: error.message,
+        stack: error.stack
+      });
       throw error;
     }
   }
