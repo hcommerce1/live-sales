@@ -52,20 +52,28 @@ app.use(helmet({
   contentSecurityPolicy: {
     directives: {
       defaultSrc: ["'self'"],
-      // Allow CDN scripts but with specific SRI hashes (TODO: add SRI hashes)
+      // Vue.js requires 'unsafe-eval' for template compilation in runtime mode
+      // TODO: Migrate to Vue build step to remove 'unsafe-eval'
       scriptSrc: [
         "'self'",
+        "'unsafe-inline'", // Required for inline Vue templates
+        "'unsafe-eval'",   // Required for Vue.js runtime template compiler
         "https://cdn.jsdelivr.net",
         "https://unpkg.com",
         "https://cdn.tailwindcss.com"
       ],
       styleSrc: [
         "'self'",
+        "'unsafe-inline'", // Required for inline styles and Tailwind
         "https://cdn.jsdelivr.net",
         "https://cdn.tailwindcss.com"
       ],
       imgSrc: ["'self'", "data:", "https:"],
-      connectSrc: ["'self'", process.env.FRONTEND_URL || "*"],
+      connectSrc: [
+        "'self'",
+        "https://cdn.jsdelivr.net", // Allow Chart.js sourcemap loading
+        process.env.FRONTEND_URL || "*"
+      ],
       fontSrc: ["'self'", "https://cdn.jsdelivr.net"],
       objectSrc: ["'none'"],
       mediaSrc: ["'self'"],
