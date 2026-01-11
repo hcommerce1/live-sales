@@ -161,7 +161,13 @@ app.get('/health', (req, res) => {
 });
 
 // Serve index.html for all other routes (SPA support)
-app.get('*', (req, res) => {
+// Skip if request is for a file (has extension) or starts with /api
+app.get('*', (req, res, next) => {
+  // Skip if it's an API route or a file request (has extension)
+  if (req.path.startsWith('/api') || req.path.match(/\.[a-zA-Z0-9]+$/)) {
+    return next();
+  }
+
   if (process.env.NODE_ENV === 'production') {
     res.sendFile(path.join(__dirname, 'dist', 'index.html'));
   } else {
