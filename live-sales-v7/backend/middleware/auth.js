@@ -28,6 +28,9 @@ class AuthMiddleware {
     // Token expiration times
     this.accessTokenExpiry = '15m';   // 15 minutes
     this.refreshTokenExpiry = '7d';   // 7 days
+
+    // Session timeout: 30 minutes of inactivity
+    this.sessionTimeoutMinutes = 30;
   }
 
   /**
@@ -151,6 +154,7 @@ class AuthMiddleware {
             role: true,
             isActive: true,
             emailVerified: true,
+            lastActivityAt: true,
           }
         });
 
@@ -167,6 +171,32 @@ class AuthMiddleware {
             code: 'ACCOUNT_DEACTIVATED'
           });
         }
+
+        // Check session timeout (30 minutes of inactivity)
+        if (user.lastActivityAt) {
+          const inactiveMinutes = (Date.now() - new Date(user.lastActivityAt).getTime()) / (1000 * 60);
+
+          if (inactiveMinutes > this.sessionTimeoutMinutes) {
+            logger.info('Session timeout', {
+              userId: user.id,
+              inactiveMinutes: Math.round(inactiveMinutes)
+            });
+
+            return res.status(401).json({
+              error: 'Session expired due to inactivity',
+              code: 'SESSION_TIMEOUT',
+              inactiveMinutes: Math.round(inactiveMinutes)
+            });
+          }
+        }
+
+        // Update last activity timestamp (non-blocking)
+        prisma.user.update({
+          where: { id: user.id },
+          data: { lastActivityAt: new Date() }
+        }).catch(err => {
+          logger.warn('Failed to update lastActivityAt', { error: err.message });
+        });
 
         // Attach user to request
         req.user = user;

@@ -1,6 +1,9 @@
 const cron = require('node-cron');
 const exportService = require('../services/exportService');
 const logger = require('../utils/logger');
+const { PrismaClient } = require('@prisma/client');
+
+const prisma = new PrismaClient();
 
 class Scheduler {
   constructor() {
@@ -20,7 +23,52 @@ class Scheduler {
       }
     });
 
+    // Schedule maintenance tasks
+    this.scheduleMaintenanceTasks();
+
     logger.info(`Scheduler initialized with ${this.jobs.size} scheduled exports`);
+  }
+
+  /**
+   * Schedule maintenance tasks (audit log cleanup, etc.)
+   */
+  scheduleMaintenanceTasks() {
+    // Audit log retention: Run daily at 3 AM
+    const auditLogCleanupJob = cron.schedule('0 3 * * *', async () => {
+      logger.info('Running audit log cleanup task');
+      try {
+        await this.cleanupAuditLogs();
+        logger.info('Audit log cleanup completed');
+      } catch (error) {
+        logger.error('Audit log cleanup failed', { error: error.message });
+      }
+    });
+
+    this.jobs.set('maintenance-audit-logs', auditLogCleanupJob);
+    logger.info('Maintenance tasks scheduled');
+  }
+
+  /**
+   * Cleanup audit logs older than 90 days
+   * Configurable via AUDIT_LOG_RETENTION_DAYS env var
+   */
+  async cleanupAuditLogs() {
+    const retentionDays = parseInt(process.env.AUDIT_LOG_RETENTION_DAYS || '90', 10);
+    const cutoffDate = new Date();
+    cutoffDate.setDate(cutoffDate.getDate() - retentionDays);
+
+    logger.info(`Deleting audit logs older than ${retentionDays} days (before ${cutoffDate.toISOString()})`);
+
+    const result = await prisma.auditLog.deleteMany({
+      where: {
+        createdAt: {
+          lt: cutoffDate
+        }
+      }
+    });
+
+    logger.info(`Deleted ${result.count} old audit log entries`);
+    return result.count;
   }
 
   /**

@@ -31,15 +31,48 @@ const logger = require('./backend/utils/logger');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// HTTPS Redirect in Production
+if (process.env.NODE_ENV === 'production') {
+  app.use((req, res, next) => {
+    // Render.com uses x-forwarded-proto header
+    const proto = req.headers['x-forwarded-proto'];
+    if (proto && proto !== 'https') {
+      logger.warn('HTTP request redirected to HTTPS', {
+        path: req.path,
+        ip: req.ip
+      });
+      return res.redirect(301, `https://${req.headers.host}${req.url}`);
+    }
+    next();
+  });
+}
+
 // Security Middleware
 app.use(helmet({
   contentSecurityPolicy: {
     directives: {
       defaultSrc: ["'self'"],
-      scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'", "https://cdn.jsdelivr.net", "https://unpkg.com", "https://cdn.tailwindcss.com"],
-      styleSrc: ["'self'", "'unsafe-inline'", "https://cdn.jsdelivr.net", "https://cdn.tailwindcss.com"],
+      // Allow CDN scripts but with specific SRI hashes (TODO: add SRI hashes)
+      scriptSrc: [
+        "'self'",
+        "https://cdn.jsdelivr.net",
+        "https://unpkg.com",
+        "https://cdn.tailwindcss.com"
+      ],
+      styleSrc: [
+        "'self'",
+        "https://cdn.jsdelivr.net",
+        "https://cdn.tailwindcss.com"
+      ],
       imgSrc: ["'self'", "data:", "https:"],
       connectSrc: ["'self'", process.env.FRONTEND_URL || "*"],
+      fontSrc: ["'self'", "https://cdn.jsdelivr.net"],
+      objectSrc: ["'none'"],
+      mediaSrc: ["'self'"],
+      frameSrc: ["'none'"],
+      baseUri: ["'self'"],
+      formAction: ["'self'"],
+      upgradeInsecureRequests: process.env.NODE_ENV === 'production' ? [] : null,
     },
   },
   hsts: {
@@ -74,8 +107,12 @@ app.use(cors({
 }));
 
 app.use(cookieParser());
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
+// Response Size Limits - Different limits for different endpoints
+// Default: 1MB for most API endpoints
+app.use('/api/exports', express.json({ limit: '5mb' })); // Exports can be larger
+app.use(express.json({ limit: '1mb' })); // Default for all other routes
+app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 
 // Apply rate limiting to all routes
 app.use(publicLimiter);

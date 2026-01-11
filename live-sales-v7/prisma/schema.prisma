@@ -28,6 +28,7 @@ model User {
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
   lastLoginAt     DateTime?
+  lastActivityAt  DateTime? // Session timeout tracking
 
   // Relations
   exports         Export[]
