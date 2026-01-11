@@ -75,7 +75,7 @@ const createExportSchema = z.object({
   sheetsUrl: z.string()
     .url('Invalid Google Sheets URL')
     .regex(
-      /^https:\/\/docs\.google\.com\/spreadsheets\/d\/[a-zA-Z0-9_-]+/,
+      /^https:\/\/docs\.google\.com\/spreadsheets\/d\/[a-zA-Z0-9_-]+(\/edit)?(\?.*)?(\#.*)?$/,
       'Must be a valid Google Sheets URL'
     ),
 
@@ -113,7 +113,7 @@ const updateExportSchema = z.object({
   sheetsUrl: z.string()
     .url('Invalid Google Sheets URL')
     .regex(
-      /^https:\/\/docs\.google\.com\/spreadsheets\/d\/[a-zA-Z0-9_-]+/,
+      /^https:\/\/docs\.google\.com\/spreadsheets\/d\/[a-zA-Z0-9_-]+(\/edit)?(\?.*)?(\#.*)?$/,
       'Must be a valid Google Sheets URL'
     )
     .optional(),
