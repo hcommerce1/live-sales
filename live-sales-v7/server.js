@@ -52,10 +52,12 @@ app.use(helmet({
   contentSecurityPolicy: {
     directives: {
       defaultSrc: ["'self'"],
-      // ✅ STRICT CSP - No unsafe-inline, No unsafe-eval
-      // Vue 3 with Vite pre-compiles templates - NO runtime compilation needed!
+      // ⚠️ TEMPORARY: unsafe-eval needed for login.html Vue CDN runtime compiler
+      // TODO: Migrate login.html to Vue SFC for strict CSP
+      // Main app (Vite) uses pre-compiled templates - NO runtime compilation
       scriptSrc: [
         "'self'",
+        "'unsafe-eval'", // Required for login.html Vue CDN (will remove after migration)
         "https://cdn.jsdelivr.net",
         "https://cdn.tailwindcss.com"
       ],
