@@ -897,7 +897,1035 @@ onMounted(async () => {
 </script>
 
 <template>
-    <!-- Note: Template will be continued in next file due to length -->
+    <div id="app" v-cloak>
+        <!-- Sidebar -->
+        <div class="fixed left-0 top-0 h-full w-64 bg-white border-r border-gray-200 flex flex-col shadow-sm z-50">
+            <div class="p-6">
+                <div class="flex items-center gap-3">
+                    <!-- Logo SVG -->
+                    <div class="w-12 h-12">
+                        <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+                            <defs>
+                                <linearGradient id="grad1" x1="0%" y1="0%" x2="100%" y2="100%">
+                                    <stop offset="0%" style="stop-color:#2563eb;stop-opacity:1" />
+                                    <stop offset="100%" style="stop-color:#3b82f6;stop-opacity:1" />
+                                </linearGradient>
+                            </defs>
+                            <rect fill="url(#grad1)" width="100" height="100" rx="20"/>
+                            <text x="50" y="72" font-size="55" font-weight="bold" fill="white" text-anchor="middle" font-family="Arial, sans-serif">LS</text>
+                        </svg>
+                    </div>
+                    <div>
+                        <div class="font-bold text-base">Live Sales</div>
+                        <div class="text-xs text-gray-500">No-Code dla e-commerce</div>
+                    </div>
+                </div>
+            </div>
+
+            <nav class="flex-1 px-3 space-y-1 sidebar-nav">
+                <a href="#" @click.prevent="currentPage = 'dashboard'" :class="{'active': currentPage === 'dashboard'}" class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-100 transition-colors">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"></path>
+                    </svg>
+                    Dashboard
+                </a>
+                <a href="#" @click.prevent="currentPage = 'exports'" :class="{'active': currentPage === 'exports'}" class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-100 transition-colors">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                    </svg>
+                    Automatyczne eksporty
+                </a>
+                <a href="#" @click.prevent="currentPage = 'buy'" :class="{'active': currentPage === 'buy'}" class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-100 transition-colors">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"></path>
+                    </svg>
+                    Chcę kupić
+                </a>
+                <a href="#" @click.prevent="currentPage = 'config'" :class="{'active': currentPage === 'config'}" class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-100 transition-colors">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path>
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                    </svg>
+                    Konfiguracja
+                </a>
+            </nav>
+
+            <div class="p-4 border-t border-gray-200">
+                <div class="flex items-center gap-3 px-3 py-2">
+                    <div class="w-8 h-8 bg-gradient-to-br from-gray-200 to-gray-300 rounded-full flex items-center justify-center">
+                        <svg class="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path>
+                        </svg>
+                    </div>
+                    <div class="flex-1 min-w-0">
+                        <div class="text-sm font-medium truncate">{{ userEmail.split('@')[0] }}</div>
+                        <div class="text-xs text-gray-500">{{ userEmail }}</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Main content -->
+        <div class="ml-0 md:ml-64 min-h-screen">
+            <!-- Dashboard -->
+            <div v-if="currentPage === 'dashboard'" class="p-4 md:p-8">
+                <h1 class="text-2xl md:text-3xl font-bold mb-2">Dashboard</h1>
+                <p class="text-gray-600 mb-6 md:mb-8">Przegląd integracji i synchronizacji</p>
+
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6 mb-6 md:mb-8">
+                    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4 md:p-6">
+                        <div class="flex items-center gap-3 mb-4">
+                            <div class="w-10 h-10 md:w-12 md:h-12 bg-green-100 rounded-xl flex items-center justify-center">
+                                <svg class="w-5 h-5 md:w-6 md:h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                                </svg>
+                            </div>
+                            <div>
+                                <div class="font-semibold text-sm md:text-base">Integracja BaseLinker</div>
+                                <div class="text-xs md:text-sm text-green-600">Połączone</div>
+                            </div>
+                        </div>
+                        <p class="text-xs md:text-sm text-gray-600">Status: <strong>OK</strong></p>
+                    </div>
+
+                    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4 md:p-6">
+                        <div class="flex items-center gap-3 mb-4">
+                            <div class="w-10 h-10 md:w-12 md:h-12 bg-blue-100 rounded-xl flex items-center justify-center">
+                                <svg class="w-5 h-5 md:w-6 md:h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                                </svg>
+                            </div>
+                            <div>
+                                <div class="font-semibold text-sm md:text-base">Google Sheets</div>
+                                <div class="text-xs md:text-sm text-blue-600">Gotowe</div>
+                            </div>
+                        </div>
+                        <p class="text-xs md:text-sm text-gray-600">Arkuszy: <strong>3</strong></p>
+                    </div>
+
+                    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4 md:p-6">
+                        <div class="flex items-center gap-3 mb-4">
+                            <div class="w-10 h-10 md:w-12 md:h-12 bg-purple-100 rounded-xl flex items-center justify-center">
+                                <svg class="w-5 h-5 md:w-6 md:h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                                </svg>
+                            </div>
+                            <div>
+                                <div class="font-semibold text-sm md:text-base">Ostatnia synchronizacja</div>
+                                <div class="text-xs md:text-sm text-purple-600">{{ lastSyncText }}</div>
+                            </div>
+                        </div>
+                        <p class="text-xs md:text-sm text-gray-600">Uruchomień dziś: <strong>{{ runsToday }}</strong></p>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6 mb-6 md:mb-8">
+                    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4 md:p-6">
+                        <h3 class="text-base md:text-lg font-semibold mb-4">Szybkie akcje</h3>
+                        <div class="space-y-3">
+                            <button @click="createNewExport" class="w-full bg-blue-600 text-white px-4 py-2.5 md:py-3 rounded-lg hover:bg-blue-700 transition-colors font-medium flex items-center justify-center gap-2 text-sm md:text-base">
+                                <svg class="w-4 h-4 md:w-5 md:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
+                                </svg>
+                                Nowy eksport
+                            </button>
+                            <button @click="currentPage = 'exports'" class="w-full bg-gray-100 text-gray-700 px-4 py-2.5 md:py-3 rounded-lg hover:bg-gray-200 transition-colors font-medium flex items-center justify-center gap-2 text-sm md:text-base">
+                                <svg class="w-4 h-4 md:w-5 md:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                                </svg>
+                                Lista eksportów
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4 md:p-6">
+                        <h3 class="text-base md:text-lg font-semibold mb-4">Statystyki</h3>
+                        <div class="grid grid-cols-2 gap-4">
+                            <div class="text-center">
+                                <div class="text-2xl md:text-3xl font-bold text-blue-600">{{ ordersToday }}</div>
+                                <div class="text-xs md:text-sm text-gray-600 mt-1">Zamówień dziś</div>
+                            </div>
+                            <div class="text-center">
+                                <div class="text-2xl md:text-3xl font-bold text-blue-600">{{ activeExportsCount }}</div>
+                                <div class="text-xs md:text-sm text-gray-600 mt-1">Aktywne eksporty</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Bottom row: Exports list + Uptime -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
+                    <!-- Exports list -->
+                    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4 md:p-6">
+                        <h3 class="text-base md:text-lg font-semibold mb-4">Ostatnie eksporty</h3>
+                        <div class="space-y-2">
+                            <div v-for="exp in exportsList.slice(0, 3)" :key="exp.id" class="flex items-center justify-between p-2 md:p-3 rounded-lg hover:bg-gray-50 transition-colors">
+                                <div class="flex-1 min-w-0">
+                                    <div class="text-xs md:text-sm font-medium truncate">{{ exp.name }}</div>
+                                    <div class="text-xs text-gray-500">{{ formatLastRun(exp.last_run) }}</div>
+                                </div>
+                                <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ml-2" :class="exp.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'">
+                                    {{ exp.status === 'active' ? 'Aktywny' : 'Wstrzymany' }}
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Mini uptime chart -->
+                    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4 md:p-6">
+                        <div class="flex items-center justify-between mb-3">
+                            <h3 class="text-base md:text-lg font-semibold">Uptime</h3>
+                            <span class="text-xl md:text-2xl font-bold text-green-600">{{ uptime }}%</span>
+                        </div>
+                        <canvas id="uptimeChart" height="100"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Lista eksportów -->
+            <div v-if="currentPage === 'exports'" class="p-4 md:p-8">
+                <div class="flex flex-col md:flex-row items-start md:items-center justify-between mb-6 md:mb-8 gap-4">
+                    <div>
+                        <h1 class="text-2xl md:text-3xl font-bold mb-2">Automatyczne eksporty</h1>
+                        <p class="text-sm md:text-base text-gray-600">Zarządzaj konfiguracjami wydruków</p>
+                    </div>
+                    <button @click="createNewExport" class="w-full md:w-auto bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition-colors font-medium flex items-center justify-center gap-2">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
+                        </svg>
+                        Nowy eksport
+                    </button>
+                </div>
+
+                <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-x-auto">
+                    <table class="w-full min-w-[800px]">
+                        <thead class="bg-gray-50 border-b border-gray-200">
+                            <tr>
+                                <th class="px-4 md:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nazwa</th>
+                                <th class="px-4 md:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Typ</th>
+                                <th class="px-4 md:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                                <th class="px-4 md:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Uptime</th>
+                                <th class="px-4 md:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Ostatnie uruchomienie</th>
+                                <th class="px-4 md:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Arkusz</th>
+                                <th class="px-4 md:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Akcje</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-gray-200">
+                            <tr v-for="exp in exportsList" :key="exp.id" class="hover:bg-gray-50">
+                                <td class="px-4 md:px-6 py-4">
+                                    <div class="font-medium text-sm">{{ exp.name }}</div>
+                                    <div class="text-xs text-gray-500">{{ exp.id }}</div>
+                                </td>
+                                <td class="px-4 md:px-6 py-4">
+                                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium" :class="exp.type === 'orders' ? 'bg-blue-100 text-blue-800' : 'bg-green-100 text-green-800'">
+                                        {{ exp.type === 'orders' ? 'Zamówienia' : 'Produkty' }}
+                                    </span>
+                                </td>
+                                <td class="px-4 md:px-6 py-4">
+                                    <button @click="toggleExportStatus(exp)" class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium cursor-pointer transition-colors" :class="exp.status === 'active' ? 'bg-green-100 text-green-800 hover:bg-green-200' : 'bg-gray-100 text-gray-800 hover:bg-gray-200'">
+                                        {{ exp.status === 'active' ? 'Aktywny' : 'Wstrzymany' }}
+                                    </button>
+                                </td>
+                                <td class="px-4 md:px-6 py-4">
+                                    <span class="text-sm font-medium text-green-600">{{ exp.uptime }}%</span>
+                                </td>
+                                <td class="px-4 md:px-6 py-4">
+                                    <span class="text-sm text-gray-600">{{ formatLastRun(exp.last_run) }}</span>
+                                </td>
+                                <td class="px-4 md:px-6 py-4">
+                                    <a v-if="exp.sheet_url" :href="exp.sheet_url" target="_blank" class="text-blue-600 hover:text-blue-800 text-sm flex items-center gap-1">
+                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path>
+                                        </svg>
+                                        Otwórz
+                                    </a>
+                                    <span v-else class="text-xs text-gray-400">Brak</span>
+                                </td>
+                                <td class="px-4 md:px-6 py-4">
+                                    <div class="flex items-center gap-2">
+                                        <button @click="loadExport(exp.id)" class="text-blue-600 hover:text-blue-800 text-sm font-medium flex items-center gap-1">
+                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path>
+                                            </svg>
+                                            Edytuj
+                                        </button>
+                                        <button @click="confirmDelete(exp.id)" class="text-red-600 hover:text-red-800 text-sm font-medium flex items-center gap-1">
+                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+                                            </svg>
+                                            Usuń
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Chcę kupić -->
+            <div v-if="currentPage === 'buy'" class="p-4 md:p-8">
+                <div class="max-w-5xl mx-auto">
+                    <h1 class="text-2xl md:text-3xl font-bold mb-2">Chcę kupić</h1>
+                    <p class="text-sm md:text-base text-gray-600 mb-8">Wybierz plan i wypełnij formularz</p>
+
+                    <!-- Cennik -->
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6 mb-8">
+                        <!-- Darmowy -->
+                        <div class="bg-white rounded-xl shadow-sm border-2 border-gray-200 p-6">
+                            <h3 class="text-lg font-bold mb-2">Darmowy</h3>
+                            <div class="text-3xl font-bold text-gray-600 mb-4">0 zł</div>
+                            <ul class="text-sm space-y-2 mb-4">
+                                <li class="flex items-start gap-2">
+                                    <svg class="w-5 h-5 text-green-500 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                                        <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+                                    </svg>
+                                    <span>Podstawowe pola</span>
+                                </li>
+                                <li class="flex items-start gap-2">
+                                    <svg class="w-5 h-5 text-red-500 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                                        <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"/>
+                                    </svg>
+                                    <span>Ograniczona częstotliwość</span>
+                                </li>
+                                <li class="flex items-start gap-2">
+                                    <svg class="w-5 h-5 text-red-500 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                                        <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"/>
+                                    </svg>
+                                    <span>Limit eksportów</span>
+                                </li>
+                            </ul>
+                        </div>
+
+                        <!-- Business -->
+                        <div class="bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl shadow-lg border-2 border-blue-300 p-6 relative">
+                            <div class="absolute -top-3 left-1/2 transform -translate-x-1/2 bg-blue-600 text-white text-xs font-bold px-3 py-1 rounded-full">POPULARNE</div>
+                            <h3 class="text-lg font-bold mb-2">Business</h3>
+                            <div class="text-3xl font-bold text-blue-600 mb-4">69 zł <span class="text-sm text-gray-600">/mies</span></div>
+                            <ul class="text-sm space-y-2 mb-4">
+                                <li class="flex items-start gap-2">
+                                    <svg class="w-5 h-5 text-green-500 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                                        <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+                                    </svg>
+                                    <span>Do 10 eksportów</span>
+                                </li>
+                                <li class="flex items-start gap-2">
+                                    <svg class="w-5 h-5 text-green-500 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                                        <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+                                    </svg>
+                                    <span>Wszystko na żywo</span>
+                                </li>
+                                <li class="flex items-start gap-2">
+                                    <svg class="w-5 h-5 text-green-500 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                                        <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+                                    </svg>
+                                    <span>Wszystkie pola</span>
+                                </li>
+                            </ul>
+                        </div>
+
+                        <!-- PRO -->
+                        <div class="bg-gradient-to-br from-purple-50 to-purple-100 rounded-xl shadow-lg border-2 border-purple-300 p-6">
+                            <h3 class="text-lg font-bold mb-2">PRO</h3>
+                            <div class="text-3xl font-bold text-purple-600 mb-4">99 zł <span class="text-sm text-gray-600">/mies</span></div>
+                            <ul class="text-sm space-y-2 mb-4">
+                                <li class="flex items-start gap-2">
+                                    <svg class="w-5 h-5 text-green-500 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                                        <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+                                    </svg>
+                                    <span>Do 25 eksportów</span>
+                                </li>
+                                <li class="flex items-start gap-2">
+                                    <svg class="w-5 h-5 text-green-500 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                                        <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+                                    </svg>
+                                    <span>Live updates</span>
+                                </li>
+                                <li class="flex items-start gap-2">
+                                    <svg class="w-5 h-5 text-green-500 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                                        <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+                                    </svg>
+                                    <span>Nowe biznesowe pola</span>
+                                </li>
+                            </ul>
+                        </div>
+                    </div>
+
+                    <!-- Enterprise -->
+                    <div class="bg-gradient-to-r from-gray-900 to-gray-800 text-white rounded-xl shadow-xl p-6 mb-8">
+                        <div class="flex flex-col md:flex-row items-center justify-between gap-4">
+                            <div>
+                                <h3 class="text-2xl font-bold mb-2">Enterprise</h3>
+                                <p class="text-gray-300">Indywidualnie dostosowane rozwiązanie dla Twojej firmy</p>
+                            </div>
+                            <button @click="scrollToForm" class="bg-white text-gray-900 px-6 py-3 rounded-lg font-bold hover:bg-gray-100 transition-colors">
+                                Skontaktuj się
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Jak działa - Video Section -->
+                    <div class="bg-gradient-to-br from-indigo-50 to-purple-50 rounded-xl p-6 md:p-8 border-2 border-indigo-200 mb-8">
+                        <h3 class="text-xl md:text-2xl font-bold mb-4 text-center flex items-center justify-center gap-3">
+                            <svg class="w-7 h-7 md:w-8 md:h-8 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"></path>
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                            </svg>
+                            <span class="bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
+                                Jak działa Live Sales?
+                            </span>
+                        </h3>
+                        
+                        <p class="text-center text-gray-700 mb-6 text-sm md:text-base">
+                            Zobacz krótki filmik prezentujący możliwości Live Sales
+                        </p>
+
+                        <!-- Video Container -->
+                        <div class="relative bg-white rounded-lg shadow-xl overflow-hidden mx-auto max-w-4xl" style="padding-bottom: 56.25%; /* 16:9 aspect ratio */">
+                            <!-- Placeholder gdy nie ma filmiku -->
+                            <div class="absolute inset-0 flex flex-col items-center justify-center bg-gradient-to-br from-gray-100 to-gray-200">
+                                <svg class="w-16 h-16 md:w-24 md:h-24 text-gray-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"></path>
+                                </svg>
+                                <p class="text-gray-500 text-base md:text-lg font-medium mb-2">Filmik wkrótce dostępny</p>
+                                <p class="text-gray-400 text-xs md:text-sm">Video tutorial będzie tutaj</p>
+                            </div>
+
+                            <!-- 
+                            ═══════════════════════════════════════════════════════════════
+                            JAK DODAĆ FILMIK:
+                            ═══════════════════════════════════════════════════════════════
+                            
+                            1. Usuń cały <div> z placeholderem powyżej (od "Placeholder" do </div>)
+                            
+                            2. Wklej jeden z poniższych kodów:
+                            
+                            ───────────────────────────────────────────────────────────────
+                            YOUTUBE:
+                            ───────────────────────────────────────────────────────────────
+                            <iframe 
+                                class="absolute inset-0 w-full h-full" 
+                                src="https://www.youtube.com/embed/TWOJ_VIDEO_ID?rel=0" 
+                                title="Live Sales Tutorial" 
+                                frameborder="0" 
+                                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
+                                allowfullscreen>
+                            </iframe>
+                            
+                            Przykład z prawdziwym ID:
+                            src="https://www.youtube.com/embed/dQw4w9WgXcQ?rel=0"
+                                                        └─────────┘
+                                                        Twoje Video ID
+                            
+                            ───────────────────────────────────────────────────────────────
+                            VIMEO:
+                            ───────────────────────────────────────────────────────────────
+                            <iframe 
+                                class="absolute inset-0 w-full h-full" 
+                                src="https://player.vimeo.com/video/TWOJ_VIDEO_ID?title=0&byline=0&portrait=0" 
+                                title="Live Sales Tutorial"
+                                frameborder="0" 
+                                allow="autoplay; fullscreen; picture-in-picture" 
+                                allowfullscreen>
+                            </iframe>
+                            
+                            ───────────────────────────────────────────────────────────────
+                            LOOM:
+                            ───────────────────────────────────────────────────────────────
+                            <iframe 
+                                class="absolute inset-0 w-full h-full" 
+                                src="https://www.loom.com/embed/TWOJ_VIDEO_ID" 
+                                title="Live Sales Tutorial"
+                                frameborder="0" 
+                                webkitallowfullscreen 
+                                mozallowfullscreen 
+                                allowfullscreen>
+                            </iframe>
+                            
+                            ───────────────────────────────────────────────────────────────
+                            WISTIA:
+                            ───────────────────────────────────────────────────────────────
+                            <iframe 
+                                class="absolute inset-0 w-full h-full wistia_embed" 
+                                src="https://fast.wistia.net/embed/iframe/TWOJ_VIDEO_ID" 
+                                title="Live Sales Tutorial"
+                                frameborder="0" 
+                                allowfullscreen>
+                            </iframe>
+                            
+                            ───────────────────────────────────────────────────────────────
+                            WŁASNY SERWER (MP4):
+                            ───────────────────────────────────────────────────────────────
+                            <video 
+                                class="absolute inset-0 w-full h-full" 
+                                controls 
+                                poster="https://twoja-domena.pl/thumbnail.jpg">
+                                <source src="https://twoja-domena.pl/video.mp4" type="video/mp4">
+                                Twoja przeglądarka nie obsługuje video.
+                            </video>
+                            
+                            ═══════════════════════════════════════════════════════════════
+                            -->
+                        </div>
+
+                        <!-- Video Features -->
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-3 md:gap-4 mt-6">
+                            <div class="bg-white rounded-lg p-3 md:p-4 text-center shadow-sm">
+                                <div class="text-indigo-600 font-bold text-xl md:text-2xl mb-1">~2 min</div>
+                                <div class="text-gray-600 text-xs md:text-sm">Szybki tutorial</div>
+                            </div>
+                            <div class="bg-white rounded-lg p-3 md:p-4 text-center shadow-sm">
+                                <div class="text-indigo-600 font-bold text-xl md:text-2xl mb-1">Krok po kroku</div>
+                                <div class="text-gray-600 text-xs md:text-sm">Łatwa konfiguracja</div>
+                            </div>
+                            <div class="bg-white rounded-lg p-3 md:p-4 text-center shadow-sm">
+                                <div class="text-indigo-600 font-bold text-xl md:text-2xl mb-1">5 minut</div>
+                                <div class="text-gray-600 text-xs md:text-sm">I już działa!</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Roadmap -->
+                    <div class="bg-gradient-to-r from-blue-50 to-purple-50 border-2 border-blue-200 rounded-xl p-6 mb-8">
+                        <h3 class="text-2xl font-bold mb-4 flex items-center gap-3 bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+                            <svg class="w-8 h-8 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
+                            </svg>
+                            Plany rozwoju - ta sama cena!
+                        </h3>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+                            <div class="flex items-center gap-2">
+                                <svg class="w-5 h-5 text-blue-500 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                                    <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+                                </svg>
+                                <span>Wysyłka HTTP/FTP plików</span>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <svg class="w-5 h-5 text-blue-500 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                                    <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+                                </svg>
+                                <span>Integracja Slack</span>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <svg class="w-5 h-5 text-blue-500 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                                    <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+                                </svg>
+                                <span>WhatsApp, Telegram, Messenger</span>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <svg class="w-5 h-5 text-blue-500 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                                    <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+                                </svg>
+                                <span>Microsoft Teams</span>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <svg class="w-5 h-5 text-blue-500 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                                    <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+                                </svg>
+                                <span>Wysyłka emailowa</span>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <svg class="w-5 h-5 text-blue-500 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                                    <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+                                </svg>
+                                <span>AI Raporty i podsumowania</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Formularz -->
+                    <div id="contact-form" class="bg-white rounded-xl shadow-lg border border-gray-200 p-6 md:p-8">
+                        <h2 class="text-xl md:text-2xl font-bold mb-6">Formularz kontaktowy</h2>
+                        <form @submit.prevent="submitBuyForm" class="space-y-6">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">Email *</label>
+                                <input v-model="buyForm.email" type="email" required class="w-full border-2 border-gray-300 rounded-lg px-4 py-3 focus:border-blue-500 focus:outline-none transition-colors">
+                            </div>
+
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">NIP firmy *</label>
+                                <input v-model="buyForm.nip" @input="formatNip" type="text" required maxlength="13" placeholder="123-456-78-90" class="w-full border-2 border-gray-300 rounded-lg px-4 py-3 focus:border-blue-500 focus:outline-none transition-colors">
+                                <p class="text-xs text-gray-500 mt-1">Format: xxx-xxx-xx-xx</p>
+                            </div>
+
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">Numer telefonu *</label>
+                                <input v-model="buyForm.phone" type="tel" required pattern="[0-9]{9,11}" placeholder="123456789" class="w-full border-2 border-gray-300 rounded-lg px-4 py-3 focus:border-blue-500 focus:outline-none transition-colors">
+                            </div>
+
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">Dodatkowe informacje</label>
+                                <textarea v-model="buyForm.message" rows="4" placeholder="Opisz swoje potrzeby..." class="w-full border-2 border-gray-300 rounded-lg px-4 py-3 focus:border-blue-500 focus:outline-none transition-colors"></textarea>
+                            </div>
+
+                            <button type="submit" class="w-full bg-blue-600 text-white px-6 py-4 rounded-lg hover:bg-blue-700 transition-colors font-medium flex items-center justify-center gap-2">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path>
+                                </svg>
+                                Wyślij zapytanie
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+
+            <!-- KONFIGURACJA -->
+            <div v-if="currentPage === 'config'" class="p-4 md:p-8">
+                <div class="max-w-3xl mx-auto">
+                    <h1 class="text-2xl md:text-3xl font-bold mb-2">Konfiguracja</h1>
+                    <p class="text-sm md:text-base text-gray-600 mb-8">Zarządzaj tokenem BaseLinker i ustawieniami konta</p>
+
+                    <!-- BaseLinker Token Card -->
+                    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6">
+                        <div class="flex items-start gap-4 mb-6">
+                            <div class="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center flex-shrink-0">
+                                <svg class="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"></path>
+                                </svg>
+                            </div>
+                            <div class="flex-1">
+                                <h2 class="text-xl font-semibold mb-1">Token BaseLinker</h2>
+                                <p class="text-sm text-gray-600">Token potrzebny do synchronizacji danych z BaseLinker</p>
+                            </div>
+                        </div>
+
+                        <div class="space-y-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">
+                                    Token API
+                                </label>
+                                <div class="relative">
+                                    <input
+                                        v-model="baselinkerToken"
+                                        :type="showToken ? 'text' : 'password'"
+                                        @input="onTokenChange"
+                                        placeholder="Wklej tutaj swój token BaseLinker"
+                                        class="w-full border-2 border-gray-300 rounded-lg px-4 py-3 pr-24 focus:border-blue-500 focus:outline-none transition-colors font-mono text-sm"
+                                    >
+                                    <button
+                                        @click="showToken = !showToken"
+                                        type="button"
+                                        class="absolute right-2 top-1/2 -translate-y-1/2 px-3 py-1.5 text-sm text-gray-600 hover:text-gray-800 transition-colors"
+                                    >
+                                        <svg v-if="!showToken" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path>
+                                        </svg>
+                                        <svg v-else class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21"></path>
+                                        </svg>
+                                    </button>
+                                </div>
+                                <p class="text-xs text-gray-500 mt-2">
+                                    Token jest szyfrowany za pomocą AES-256-GCM i bezpiecznie przechowywany dla Twojego konta
+                                </p>
+                            </div>
+
+                            <div v-if="tokenSaved" class="flex items-center gap-2 text-sm text-green-600 bg-green-50 px-4 py-3 rounded-lg border border-green-200">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                                </svg>
+                                Token został zapisany automatycznie
+                            </div>
+
+                            <div class="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                                <div class="flex gap-3">
+                                    <svg class="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                                    </svg>
+                                    <div class="text-sm text-blue-800">
+                                        <p class="font-medium mb-1">Jak znaleźć token BaseLinker?</p>
+                                        <ol class="list-decimal list-inside space-y-1 text-blue-700">
+                                            <li>Zaloguj się do BaseLinker</li>
+                                            <li>Przejdź do: Integracje → API</li>
+                                            <li>Skopiuj token API</li>
+                                            <li>Wklej token w pole powyżej</li>
+                                        </ol>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Account Settings Card -->
+                    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+                        <div class="flex items-start gap-4 mb-6">
+                            <div class="w-12 h-12 bg-purple-100 rounded-xl flex items-center justify-center flex-shrink-0">
+                                <svg class="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path>
+                                </svg>
+                            </div>
+                            <div class="flex-1">
+                                <h2 class="text-xl font-semibold mb-1">Ustawienia konta</h2>
+                                <p class="text-sm text-gray-600">Zarządzaj swoim kontem i ustawieniami bezpieczeństwa</p>
+                            </div>
+                        </div>
+
+                        <div class="space-y-4">
+                            <div class="flex items-center justify-between py-3 border-b border-gray-200">
+                                <div>
+                                    <p class="font-medium text-gray-900">Email</p>
+                                    <p class="text-sm text-gray-600">{{ userEmail }}</p>
+                                </div>
+                            </div>
+
+                            <div class="flex items-center justify-between py-3">
+                                <div>
+                                    <p class="font-medium text-gray-900">Wyloguj się</p>
+                                    <p class="text-sm text-gray-600">Zakończ bieżącą sesję</p>
+                                </div>
+                                <button
+                                    @click="logout"
+                                    class="px-4 py-2 border-2 border-red-500 text-red-600 rounded-lg hover:bg-red-50 transition-colors font-medium text-sm"
+                                >
+                                    Wyloguj
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- KONFIGURATOR -->
+            <div v-if="currentPage === 'konfigurator'" class="flex flex-col min-h-screen">
+                <!-- Top bar -->
+                <div class="bg-white border-b border-gray-200 px-4 md:px-6 py-4 sticky top-0 z-10 shadow-sm">
+                    <div class="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+                        <!-- Editable name -->
+                        <div class="flex items-center gap-3 w-full md:w-auto">
+                            <input v-if="editingName" v-model="config.name" @blur="editingName = false" @keyup.enter="editingName = false" type="text" class="text-lg font-medium border-2 border-blue-500 rounded-lg px-4 py-2 w-full md:w-96 focus:outline-none" autofocus>
+                            <div v-else class="flex items-center gap-2">
+                                <span class="text-lg font-medium">{{ config.name }}</span>
+                                <button @click="editingName = true" class="text-gray-400 hover:text-gray-600 transition-colors">
+                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path>
+                                    </svg>
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <div class="flex flex-col md:flex-row items-stretch md:items-center gap-3 w-full md:w-auto">
+                            <!-- Dataset toggle -->
+                            <div class="inline-flex rounded-lg border-2 border-gray-300 p-1 bg-gray-50">
+                                <button @click="config.dataset = 'orders'; onDatasetChange()" :class="config.dataset === 'orders' ? 'bg-white shadow-sm border border-gray-200' : ''" class="flex-1 md:flex-none px-4 py-2 rounded-md text-sm font-medium transition-all flex items-center justify-center gap-2">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"></path>
+                                    </svg>
+                                    Zamówienia
+                                </button>
+                                <button @click="config.dataset = 'products'; onDatasetChange()" :class="config.dataset === 'products' ? 'bg-white shadow-sm border border-gray-200' : ''" class="flex-1 md:flex-none px-4 py-2 rounded-md text-sm font-medium transition-all flex items-center justify-center gap-2">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"></path>
+                                    </svg>
+                                    Produkty
+                                </button>
+                            </div>
+
+                            <!-- Schedule -->
+                            <select v-model="scheduleValue" @change="updateSchedule" class="border-2 border-gray-300 rounded-lg px-4 py-2.5 text-sm font-medium focus:border-blue-500 focus:outline-none transition-colors bg-white">
+                                <option value="live">⚡ Na żywo · PRO</option>
+                                <option value="5-minutes">Co 5 minut</option>
+                                <option value="15-minutes">Co 15 minut</option>
+                                <option value="30-minutes">Co 30 minut</option>
+                                <option value="1-hours">Co godzinę</option>
+                                <option value="6-hours">Co 6 godzin</option>
+                                <option value="12-hours">Co 12 godzin</option>
+                                <option value="1-days">Raz dziennie</option>
+                            </select>
+
+                            <button @click="runExport" class="bg-blue-100 text-blue-700 px-4 md:px-5 py-2.5 rounded-lg hover:bg-blue-200 transition-colors font-medium flex items-center justify-center gap-2 text-sm md:text-base">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"></path>
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                                </svg>
+                                <span class="hidden md:inline">Uruchom teraz</span>
+                            </button>
+
+                            <button @click="saveConfig" class="bg-blue-600 text-white px-4 md:px-5 py-2.5 rounded-lg hover:bg-blue-700 transition-colors font-medium flex items-center justify-center gap-2 text-sm md:text-base">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"></path>
+                                </svg>
+                                Zapisz
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 4 panele -->
+                <div class="flex-1 p-4 md:p-6 overflow-hidden">
+                    <div class="grid grid-cols-1 md:grid-cols-12 gap-4 md:gap-6 h-full">
+                        <!-- Panel A: Dostępne pola -->
+                        <div class="md:col-span-3 overflow-y-auto">
+                            <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
+                                <h3 class="text-base md:text-lg font-semibold mb-3">Dostępne pola</h3>
+                                
+                                <div class="relative mb-3">
+                                    <input v-model="searchQuery" type="text" placeholder="Szukaj pola..." class="w-full border-2 border-gray-300 rounded-lg px-10 py-2.5 text-sm focus:border-blue-500 focus:outline-none">
+                                    <svg class="w-5 h-5 text-gray-400 absolute left-3 top-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+                                    </svg>
+                                </div>
+
+                                <div class="space-y-2">
+                                    <div v-for="group in filteredGroups" :key="group.name" class="border-b border-gray-200 pb-2">
+                                        <button @click="toggleGroup(group.name)" class="w-full flex items-center justify-between py-2 hover:bg-gray-50 rounded-lg px-2 transition-colors">
+                                            <span class="font-medium text-sm">{{ group.name }}</span>
+                                            <svg class="w-5 h-5 transition-transform" :class="expandedGroups.includes(group.name) ? 'rotate-90' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+                                            </svg>
+                                        </button>
+                                        
+                                        <div v-if="expandedGroups.includes(group.name)" class="ml-2 mt-1 space-y-1">
+                                            <div v-for="field in group.fields" :key="field.field_key" 
+                                                 @click="handleFieldClick(field)"
+                                                 :class="isFieldSelected(field.field_key) ? 'field-disabled' : 'hover:bg-blue-50 cursor-pointer'"
+                                                 class="flex items-center justify-between py-2 px-3 rounded-lg transition-colors border border-transparent hover:border-blue-200">
+                                                <div class="flex items-center gap-2 flex-1">
+                                                    <svg v-if="isFieldSelected(field.field_key)" class="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                                                    </svg>
+                                                    <svg v-else class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v3m0 0v3m0-3h3m-3 0H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                                                    </svg>
+                                                    <span class="text-sm">{{ field.label }}</span>
+                                                </div>
+                                                <span v-if="field.higher_plan" @click.stop="currentPage = 'buy'" class="text-xs bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full font-medium cursor-pointer hover:bg-amber-200">PRO</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Panel B: Wybrane pola -->
+                        <div class="md:col-span-3 overflow-y-auto">
+                            <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
+                                <div class="flex items-center justify-between mb-3">
+                                    <h3 class="text-base md:text-lg font-semibold">Wybrane pola ({{ config.selected_fields.length }})</h3>
+                                </div>
+
+                                <div v-if="config.selected_fields.length === 0" class="text-center py-12 text-gray-400">
+                                    <svg class="w-16 h-16 mx-auto mb-3 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4"></path>
+                                    </svg>
+                                    <p class="text-sm">Nie wybrano żadnych pól</p>
+                                    <p class="text-xs mt-1">Kliknij pola po lewej aby dodać</p>
+                                </div>
+
+                                <div id="sortable-list" v-else class="space-y-2">
+                                    <div v-for="fieldKey in config.selected_fields" :key="fieldKey" :data-id="fieldKey"
+                                         class="flex items-center gap-3 p-3 bg-gray-50 rounded-lg hover:bg-gray-100 border border-gray-200 transition-colors">
+                                        <svg class="drag-handle w-5 h-5 text-gray-400 cursor-move flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8h16M4 16h16"></path>
+                                        </svg>
+                                        <div class="flex-1 min-w-0">
+                                            <div class="text-sm font-medium truncate">{{ getFieldLabel(fieldKey) }}</div>
+                                            <div class="text-xs text-gray-500 truncate">{{ fieldKey }}</div>
+                                        </div>
+                                        <button @click="removeField(fieldKey)" class="text-red-500 hover:text-red-700 transition-colors flex-shrink-0">
+                                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                                            </svg>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Panel C: Konfiguracja -->
+                        <div class="md:col-span-3 overflow-y-auto space-y-4">
+                            <!-- Filtry Accordion -->
+                            <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+                                <button @click="toggleAccordion('filters')" class="w-full px-4 py-3 flex items-center justify-between hover:bg-gray-50 transition-colors">
+                                    <h4 class="font-semibold text-sm flex items-center gap-2">
+                                        <svg class="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"></path>
+                                        </svg>
+                                        Filtry
+                                    </h4>
+                                    <svg class="w-5 h-5 transition-transform" :class="accordionOpen === 'filters' ? 'rotate-180' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                                    </svg>
+                                </button>
+                                
+                                <div :class="accordionOpen === 'filters' ? 'open' : ''" class="accordion-content">
+                                    <div class="p-4 space-y-4 border-t border-gray-200">
+                                        <div v-if="config.dataset === 'orders'">
+                                            <label class="block text-sm font-medium text-gray-700 mb-2">Status zamówienia</label>
+                                            <select v-model="config.filters.status" class="w-full border-2 border-gray-300 rounded-lg px-4 py-2.5 text-sm focus:border-blue-500 focus:outline-none bg-white">
+                                                <option value="">Wszystkie statusy</option>
+                                                <option value="234540">Nowe</option>
+                                                <option value="234562">Opłacone</option>
+                                                <option value="234563">W realizacji</option>
+                                                <option value="234564">Wysłane</option>
+                                            </select>
+                                        </div>
+
+                                        <div>
+                                            <label class="block text-sm font-medium text-gray-700 mb-2">Data od</label>
+                                            <input v-model="config.filters.date_from" type="date" class="w-full border-2 border-gray-300 rounded-lg px-4 py-2.5 text-sm focus:border-blue-500 focus:outline-none bg-white">
+                                        </div>
+
+                                        <div>
+                                            <label class="block text-sm font-medium text-gray-700 mb-2">Data do</label>
+                                            <input v-model="config.filters.date_to" type="date" class="w-full border-2 border-gray-300 rounded-lg px-4 py-2.5 text-sm focus:border-blue-500 focus:outline-none bg-white">
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Google Sheets Accordion -->
+                            <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+                                <button @click="toggleAccordion('sheets')" class="w-full px-4 py-3 flex items-center justify-between hover:bg-gray-50 transition-colors">
+                                    <h4 class="font-semibold text-sm flex items-center gap-2">
+                                        <svg class="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                                        </svg>
+                                        Google Sheets
+                                    </h4>
+                                    <svg class="w-5 h-5 transition-transform" :class="accordionOpen === 'sheets' ? 'rotate-180' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                                    </svg>
+                                </button>
+                                
+                                <div :class="accordionOpen === 'sheets' ? 'open' : ''" class="accordion-content">
+                                    <div class="p-4 space-y-4 border-t border-gray-200">
+                                        <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 text-sm">
+                                            <p class="font-semibold mb-2 flex items-center gap-2">
+                                                <svg class="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                                                </svg>
+                                                Udostępnij arkusz do edycji dla:
+                                            </p>
+                                            <code class="block bg-white px-3 py-2 rounded border border-blue-200 text-blue-800 font-mono text-xs break-all select-all">live-sales-worker@livesales-483523.iam.gserviceaccount.com</code>
+                                            <p class="text-xs text-gray-600 mt-2">Skopiuj powyższy email, otwórz swój arkusz Google Sheets → kliknij "Udostępnij" → wklej email → wybierz "Edytor" → Gotowe!</p>
+                                        </div>
+
+                                        <div>
+                                            <label class="block text-sm font-medium text-gray-700 mb-2">URL arkusza</label>
+                                            <input v-model="config.sheets.sheet_url" @blur="validateSheetUrl" type="text" placeholder="https://docs.google.com/spreadsheets/d/..." class="w-full border-2 rounded-lg px-4 py-2.5 text-sm focus:outline-none bg-white" :class="sheetUrlValid === false ? 'border-red-500' : sheetUrlValid === true ? 'border-green-500' : 'border-gray-300'">
+                                            <p v-if="sheetUrlValid === false" class="text-xs text-red-600 mt-1">Nieprawidłowy URL Google Sheets</p>
+                                            <p v-if="extractedSheetId" class="text-xs text-green-600 mt-1">Sheet ID: {{ extractedSheetId }}</p>
+                                        </div>
+
+                                        <div>
+                                            <label class="block text-sm font-medium text-gray-700 mb-2">Tryb zapisu</label>
+                                            <select v-model="config.sheets.write_mode" class="w-full border-2 border-gray-300 rounded-lg px-4 py-2.5 text-sm focus:border-blue-500 focus:outline-none bg-white">
+                                                <option value="append">Dopisz na górze (Insert Top)</option>
+                                                <option value="replace">Zastąp wszystko (Replace)</option>
+                                            </select>
+                                            <p class="text-xs text-gray-500 mt-2">
+                                                <strong>Dopisz na górze:</strong> Nowe dane są zawsze dodawane NA POCZĄTKU arkusza (zaraz po headerze). Stare dane schodzą w dół. Najnowsze dane zawsze na górze! Idealne gdy chcesz gromadzić historię z najnowszymi danymi na wierzchu.<br>
+                                                <strong>Zastąp:</strong> Arkusz jest czyszczony całkowicie i zapisywane są tylko dane spełniające aktualny filtr. Idealne do raportów "do spakowania" gdzie potrzebujesz tylko aktualne dane.
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Panel D: Preview -->
+                        <div class="md:col-span-3 overflow-y-auto">
+                            <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
+                                <div class="flex items-center justify-between mb-3">
+                                    <h3 class="text-base md:text-lg font-semibold">Podgląd danych</h3>
+                                    <span class="text-xs bg-blue-100 text-blue-800 px-2.5 py-1 rounded-full font-medium">
+                                        {{ recordCount }} rekordów
+                                    </span>
+                                </div>
+
+                                <div class="space-y-3">
+                                    <button @click="showPreviewModal = true" :disabled="config.selected_fields.length === 0" class="w-full bg-blue-600 text-white px-4 py-3 rounded-lg hover:bg-blue-700 transition-colors font-medium flex items-center justify-center gap-2 disabled:bg-gray-300 disabled:cursor-not-allowed text-sm md:text-base">
+                                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path>
+                                        </svg>
+                                        Podgląd tabeli
+                                    </button>
+
+                                    <button @click="downloadCsv" :disabled="config.selected_fields.length === 0" class="w-full bg-green-600 text-white px-4 py-3 rounded-lg hover:bg-green-700 transition-colors font-medium flex items-center justify-center gap-2 disabled:bg-gray-300 disabled:cursor-not-allowed text-sm md:text-base">
+                                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
+                                        </svg>
+                                        Pobierz CSV
+                                    </button>
+                                </div>
+
+                                <div v-if="config.selected_fields.length === 0" class="mt-6 text-center py-12 text-gray-400">
+                                    <svg class="w-16 h-16 mx-auto mb-3 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                                    </svg>
+                                    <p class="text-sm">Wybierz pola aby zobaczyć podgląd</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Preview Modal -->
+        <div v-if="showPreviewModal" @click.self="showPreviewModal = false" class="fixed inset-0 bg-black bg-opacity-50 modal-backdrop flex items-center justify-center z-50 p-4 md:p-6">
+            <div class="bg-white rounded-2xl shadow-2xl w-full max-w-6xl max-h-[90vh] flex flex-col">
+                <div class="flex items-center justify-between p-4 md:p-6 border-b border-gray-200">
+                    <h3 class="text-xl md:text-2xl font-bold">Podgląd danych (max 5 rekordów)</h3>
+                    <button @click="showPreviewModal = false" class="text-gray-400 hover:text-gray-600 transition-colors">
+                        <svg class="w-6 h-6 md:w-8 md:h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                        </svg>
+                    </button>
+                </div>
+                
+                <div class="p-4 md:p-6 overflow-auto flex-1">
+                    <div class="overflow-x-auto">
+                        <table class="w-full border-collapse">
+                            <thead>
+                                <tr class="bg-gradient-to-r from-blue-50 to-blue-100">
+                                    <th v-for="fieldKey in config.selected_fields" :key="fieldKey" class="border-2 border-blue-200 px-3 md:px-4 py-2 md:py-3 text-left text-xs md:text-sm font-semibold text-gray-700 whitespace-nowrap">
+                                        {{ getFieldLabel(fieldKey) }}
+                                    </th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr v-for="(record, idx) in previewTableData" :key="idx" :class="idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'" class="hover:bg-blue-50 transition-colors">
+                                    <td v-for="fieldKey in config.selected_fields" :key="fieldKey" class="border border-gray-300 px-3 md:px-4 py-2 text-xs md:text-sm whitespace-nowrap">
+                                        {{ record[fieldKey] || '-' }}
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Delete Confirmation Modal -->
+        <div v-if="deleteConfirm" @click.self="deleteConfirm = null" class="fixed inset-0 bg-black bg-opacity-50 modal-backdrop flex items-center justify-center z-50 p-4 md:p-6">
+            <div class="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6">
+                <h3 class="text-xl font-bold mb-4">Potwierdź usunięcie</h3>
+                <p class="text-gray-600 mb-6">Czy na pewno chcesz usunąć ten eksport? Tej operacji nie można cofnąć.</p>
+                <div class="flex gap-3">
+                    <button @click="deleteConfirm = null" class="flex-1 bg-gray-100 text-gray-700 px-4 py-3 rounded-lg hover:bg-gray-200 transition-colors font-medium">
+                        Anuluj
+                    </button>
+                    <button @click="deleteExport(deleteConfirm)" class="flex-1 bg-red-600 text-white px-4 py-3 rounded-lg hover:bg-red-700 transition-colors font-medium">
+                        Usuń
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Toast (prawy dolny róg) -->
+        <div v-if="toast.show" class="fixed bottom-4 right-4 bg-white border-2 border-gray-200 rounded-xl shadow-2xl p-4 max-w-sm z-50 animate-slide-in">
+            <div class="flex items-start gap-3">
+                <div v-html="toast.icon" class="w-6 h-6 flex-shrink-0"></div>
+                <div class="flex-1">
+                    <div class="font-semibold text-sm">{{ toast.title }}</div>
+                    <div class="text-xs text-gray-600">{{ toast.message }}</div>
+                </div>
+            </div>
+        </div>
+    </div>
 </template>
 
 <style scoped>
