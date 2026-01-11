@@ -52,26 +52,23 @@ app.use(helmet({
   contentSecurityPolicy: {
     directives: {
       defaultSrc: ["'self'"],
-      // Vue.js requires 'unsafe-eval' for template compilation in runtime mode
-      // TODO: Migrate to Vue build step to remove 'unsafe-eval'
+      // ✅ STRICT CSP - No unsafe-inline, No unsafe-eval
+      // Vue 3 with Vite pre-compiles templates - NO runtime compilation needed!
       scriptSrc: [
         "'self'",
-        "'unsafe-inline'", // Required for inline Vue templates
-        "'unsafe-eval'",   // Required for Vue.js runtime template compiler
         "https://cdn.jsdelivr.net",
-        "https://unpkg.com",
         "https://cdn.tailwindcss.com"
       ],
       styleSrc: [
         "'self'",
-        "'unsafe-inline'", // Required for inline styles and Tailwind
+        "'unsafe-inline'", // Still needed for Tailwind CDN dynamic styles
         "https://cdn.jsdelivr.net",
         "https://cdn.tailwindcss.com"
       ],
       imgSrc: ["'self'", "data:", "https:"],
       connectSrc: [
         "'self'",
-        "https://cdn.jsdelivr.net", // Allow Chart.js sourcemap loading
+        "https://cdn.jsdelivr.net",
         process.env.FRONTEND_URL || "*"
       ],
       fontSrc: ["'self'", "https://cdn.jsdelivr.net"],
@@ -135,8 +132,15 @@ app.use((req, res, next) => {
   next();
 });
 
-// Serve static files (frontend)
-app.use(express.static(path.join(__dirname)));
+// Serve static files (frontend) - Vite build output
+// In production, serve from dist/ folder (Vite build output)
+// In development, Vite dev server runs separately on port 5173
+if (process.env.NODE_ENV === 'production') {
+  app.use(express.static(path.join(__dirname, 'dist')));
+} else {
+  // In development, serve from root for login.html and other static assets
+  app.use(express.static(path.join(__dirname)));
+}
 
 // API Routes
 app.use('/api/auth', authRoutes);  // Public auth routes
@@ -158,7 +162,11 @@ app.get('/health', (req, res) => {
 
 // Serve index.html for all other routes (SPA support)
 app.get('*', (req, res) => {
-  res.sendFile(path.join(__dirname, 'index.html'));
+  if (process.env.NODE_ENV === 'production') {
+    res.sendFile(path.join(__dirname, 'dist', 'index.html'));
+  } else {
+    res.sendFile(path.join(__dirname, 'index.html'));
+  }
 });
 
 // Error handling middleware
