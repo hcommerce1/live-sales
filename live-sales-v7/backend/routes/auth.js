@@ -101,12 +101,15 @@ router.post('/register', validate(registerSchema), async (req, res) => {
   } catch (error) {
     logger.error('Registration failed', {
       error: error.message,
+      stack: error.stack,
       email: req.body.email
     });
+    console.error('Full registration error:', error); // Extra logging
 
     res.status(500).json({
       error: 'Registration failed',
-      code: 'REGISTRATION_ERROR'
+      code: 'REGISTRATION_ERROR',
+      details: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
   }
 });
@@ -251,12 +254,15 @@ router.post('/login', validate(loginSchema), async (req, res) => {
   } catch (error) {
     logger.error('Login failed', {
       error: error.message,
+      stack: error.stack,
       email: req.body.email
     });
+    console.error('Full login error:', error); // Extra logging
 
     res.status(500).json({
       error: 'Login failed',
-      code: 'LOGIN_ERROR'
+      code: 'LOGIN_ERROR',
+      details: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
   }
 });
