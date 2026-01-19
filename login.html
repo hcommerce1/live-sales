@@ -1,0 +1,675 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Live Sales - Logowanie</title>
+    <script src="https://cdn.jsdelivr.net/npm/vue@3/dist/vue.global.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        #app {
+            width: 100%;
+            max-width: 450px;
+        }
+
+        .auth-container {
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            padding: 40px;
+        }
+
+        .logo {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .logo-icon {
+            width: 64px;
+            height: 64px;
+            margin: 0 auto 16px;
+        }
+
+        .logo h1 {
+            color: #667eea;
+            font-size: 28px;
+            font-weight: 700;
+            margin-bottom: 8px;
+        }
+
+        .logo p {
+            color: #6b7280;
+            font-size: 14px;
+        }
+
+        .tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 30px;
+            border-bottom: 2px solid #e5e7eb;
+        }
+
+        .tab {
+            flex: 1;
+            padding: 12px;
+            background: none;
+            border: none;
+            border-bottom: 3px solid transparent;
+            color: #6b7280;
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            margin-bottom: -2px;
+        }
+
+        .tab:hover {
+            color: #667eea;
+        }
+
+        .tab.active {
+            color: #667eea;
+            border-bottom-color: #667eea;
+        }
+
+        .tab:disabled {
+            cursor: not-allowed;
+            opacity: 0.5;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            color: #374151;
+            font-size: 14px;
+            font-weight: 500;
+        }
+
+        .form-group input {
+            width: 100%;
+            padding: 12px 16px;
+            border: 2px solid #e5e7eb;
+            border-radius: 8px;
+            font-size: 15px;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            font-weight: 400;
+            transition: border-color 0.3s;
+        }
+
+        .form-group input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .form-group input.error {
+            border-color: #ef4444;
+        }
+
+        .form-group input:disabled {
+            background: #f9fafb;
+            cursor: not-allowed;
+        }
+
+        .error-message {
+            color: #ef4444;
+            font-size: 13px;
+            margin-top: 6px;
+        }
+
+        .password-strength {
+            margin-top: 8px;
+        }
+
+        .strength-bar {
+            height: 4px;
+            background: #e5e7eb;
+            border-radius: 2px;
+            overflow: hidden;
+            margin-bottom: 6px;
+        }
+
+        .strength-bar-fill {
+            height: 100%;
+            transition: width 0.3s, background-color 0.3s;
+        }
+
+        .strength-bar-fill.weak { width: 33%; background-color: #ef4444; }
+        .strength-bar-fill.medium { width: 66%; background-color: #f59e0b; }
+        .strength-bar-fill.strong { width: 100%; background-color: #10b981; }
+
+        .strength-text {
+            font-size: 12px;
+            color: #6b7280;
+        }
+
+        .btn {
+            width: 100%;
+            padding: 14px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s, opacity 0.2s;
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            min-height: 50px;
+        }
+
+        .btn:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn:disabled {
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        .btn-spinner {
+            width: 20px;
+            height: 20px;
+            border: 2px solid rgba(255,255,255,0.3);
+            border-top-color: white;
+            border-radius: 50%;
+            animation: spin 0.7s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .alert {
+            padding: 12px 16px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .alert.success {
+            background: #d1fae5;
+            color: #065f46;
+            border: 1px solid #a7f3d0;
+        }
+
+        .alert.error {
+            background: #fee2e2;
+            color: #991b1b;
+            border: 1px solid #fecaca;
+        }
+
+        .alert-icon {
+            width: 20px;
+            height: 20px;
+            flex-shrink: 0;
+        }
+
+        .footer-text {
+            text-align: center;
+            margin-top: 20px;
+            color: #6b7280;
+            font-size: 13px;
+        }
+
+        .footer-text a {
+            color: #667eea;
+            text-decoration: none;
+            font-weight: 500;
+        }
+
+        .footer-text a:hover {
+            text-decoration: underline;
+        }
+
+        /* Full screen loading overlay */
+        .loading-overlay {
+            position: fixed;
+            inset: 0;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.4s ease-out;
+        }
+
+        .loading-overlay.visible {
+            opacity: 1;
+            pointer-events: all;
+        }
+
+        .loading-overlay .overlay-content {
+            text-align: center;
+        }
+
+        .loading-overlay .overlay-logo {
+            width: 100px;
+            height: 100px;
+            margin-bottom: 24px;
+            animation: pulse 1.5s ease-in-out infinite;
+        }
+
+        .loading-overlay .overlay-spinner {
+            width: 28px;
+            height: 28px;
+            border: 3px solid rgba(255,255,255,0.3);
+            border-top-color: white;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            margin: 0 auto;
+        }
+
+        .loading-overlay .overlay-text {
+            color: white;
+            font-size: 18px;
+            font-weight: 500;
+            margin-top: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+        }
+
+        .loading-overlay .overlay-status {
+            color: rgba(255,255,255,0.8);
+            font-size: 14px;
+            margin-top: 8px;
+        }
+
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); opacity: 1; }
+            50% { transform: scale(1.05); opacity: 0.85; }
+        }
+
+        /* Progress dots animation */
+        .progress-dots {
+            display: inline-flex;
+            gap: 4px;
+            margin-left: 4px;
+        }
+
+        .progress-dots span {
+            width: 4px;
+            height: 4px;
+            background: white;
+            border-radius: 50%;
+            animation: dotPulse 1.4s ease-in-out infinite;
+        }
+
+        .progress-dots span:nth-child(2) { animation-delay: 0.2s; }
+        .progress-dots span:nth-child(3) { animation-delay: 0.4s; }
+
+        @keyframes dotPulse {
+            0%, 80%, 100% { opacity: 0.3; transform: scale(0.8); }
+            40% { opacity: 1; transform: scale(1); }
+        }
+    </style>
+</head>
+<body>
+    <div id="app">
+        <!-- Full screen loading overlay -->
+        <div class="loading-overlay" :class="{ visible: showOverlay }">
+            <div class="overlay-content">
+                <svg class="overlay-logo" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+                    <rect fill="white" width="100" height="100" rx="20"/>
+                    <text x="50" y="72" font-size="55" font-weight="bold" fill="#667eea" text-anchor="middle" font-family="Arial, sans-serif">LS</text>
+                </svg>
+                <div class="overlay-spinner"></div>
+                <div class="overlay-text">
+                    {{ overlayText }}
+                    <span class="progress-dots">
+                        <span></span>
+                        <span></span>
+                        <span></span>
+                    </span>
+                </div>
+                <div class="overlay-status">{{ overlayStatus }}</div>
+            </div>
+        </div>
+
+        <div class="auth-container">
+            <div class="logo">
+                <svg class="logo-icon" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+                    <defs>
+                        <linearGradient id="logoGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                            <stop offset="0%" style="stop-color:#667eea;stop-opacity:1" />
+                            <stop offset="100%" style="stop-color:#764ba2;stop-opacity:1" />
+                        </linearGradient>
+                    </defs>
+                    <rect fill="url(#logoGrad)" width="100" height="100" rx="20"/>
+                    <text x="50" y="72" font-size="55" font-weight="bold" fill="white" text-anchor="middle" font-family="Arial, sans-serif">LS</text>
+                </svg>
+                <h1>Live Sales</h1>
+                <p>Eksport danych z BaseLinker do Google Sheets</p>
+            </div>
+
+            <div class="tabs">
+                <button class="tab" :class="{ active: activeTab === 'login' }" @click="activeTab = 'login'" :disabled="loading">
+                    Logowanie
+                </button>
+                <button class="tab" :class="{ active: activeTab === 'register' }" @click="activeTab = 'register'" :disabled="loading">
+                    Rejestracja
+                </button>
+            </div>
+
+            <!-- Alerts -->
+            <div v-if="alert.show" :class="['alert', alert.type]">
+                <svg v-if="alert.type === 'success'" class="alert-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                </svg>
+                <svg v-else class="alert-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                </svg>
+                {{ alert.message }}
+            </div>
+
+            <!-- Login Form -->
+            <form v-if="activeTab === 'login'" @submit.prevent="handleLogin">
+                <div class="form-group">
+                    <label for="login-email">Email</label>
+                    <input
+                        type="email"
+                        id="login-email"
+                        v-model="loginForm.email"
+                        required
+                        placeholder="twoj@email.com"
+                        :disabled="loading"
+                    >
+                </div>
+
+                <div class="form-group">
+                    <label for="login-password">Haslo</label>
+                    <input
+                        type="password"
+                        id="login-password"
+                        v-model="loginForm.password"
+                        required
+                        placeholder="Wprowadz haslo"
+                        :disabled="loading"
+                    >
+                </div>
+
+                <button type="submit" class="btn" :disabled="loading">
+                    <span v-if="loading" class="btn-spinner"></span>
+                    <span v-else>Zaloguj sie</span>
+                    <span v-if="loading">Sprawdzanie danych...</span>
+                </button>
+            </form>
+
+            <!-- Register Form -->
+            <form v-if="activeTab === 'register'" @submit.prevent="handleRegister">
+                <div class="form-group">
+                    <label for="register-email">Email</label>
+                    <input
+                        type="email"
+                        id="register-email"
+                        v-model="registerForm.email"
+                        required
+                        placeholder="twoj@email.com"
+                        :class="{ error: registerErrors.email }"
+                        :disabled="loading"
+                    >
+                    <div v-if="registerErrors.email" class="error-message">
+                        {{ registerErrors.email }}
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="register-password">Haslo</label>
+                    <input
+                        type="password"
+                        id="register-password"
+                        v-model="registerForm.password"
+                        required
+                        placeholder="Minimum 12 znakow"
+                        :class="{ error: registerErrors.password }"
+                        @input="checkPasswordStrength"
+                        :disabled="loading"
+                    >
+                    <div v-if="registerForm.password" class="password-strength">
+                        <div class="strength-bar">
+                            <div :class="['strength-bar-fill', passwordStrength.level]"></div>
+                        </div>
+                        <div class="strength-text">{{ passwordStrength.text }}</div>
+                    </div>
+                    <div v-if="registerErrors.password" class="error-message">
+                        {{ registerErrors.password }}
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="register-password-confirm">Powtorz haslo</label>
+                    <input
+                        type="password"
+                        id="register-password-confirm"
+                        v-model="registerForm.passwordConfirm"
+                        required
+                        placeholder="Powtorz haslo"
+                        :class="{ error: registerErrors.passwordConfirm }"
+                        :disabled="loading"
+                    >
+                    <div v-if="registerErrors.passwordConfirm" class="error-message">
+                        {{ registerErrors.passwordConfirm }}
+                    </div>
+                </div>
+
+                <button type="submit" class="btn" :disabled="loading">
+                    <span v-if="loading" class="btn-spinner"></span>
+                    <span v-else>Zarejestruj sie</span>
+                    <span v-if="loading">Tworzenie konta...</span>
+                </button>
+            </form>
+
+            <div class="footer-text">
+                Bezpieczne logowanie z szyfrowaniem end-to-end
+            </div>
+        </div>
+    </div>
+
+    <script src="frontend-api.js"></script>
+    <script>
+        const { createApp } = Vue;
+
+        createApp({
+            data() {
+                return {
+                    activeTab: 'login',
+                    loading: false,
+                    showOverlay: false,
+                    overlayText: '',
+                    overlayStatus: '',
+                    alert: {
+                        show: false,
+                        type: 'success',
+                        message: ''
+                    },
+                    loginForm: {
+                        email: '',
+                        password: ''
+                    },
+                    registerForm: {
+                        email: '',
+                        password: '',
+                        passwordConfirm: ''
+                    },
+                    registerErrors: {
+                        email: '',
+                        password: '',
+                        passwordConfirm: ''
+                    },
+                    passwordStrength: {
+                        level: '',
+                        text: ''
+                    }
+                };
+            },
+            methods: {
+                async handleLogin() {
+                    this.loading = true;
+                    this.hideAlert();
+
+                    try {
+                        const response = await fetch('/api/auth/login', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(this.loginForm)
+                        });
+
+                        const data = await response.json();
+
+                        if (!response.ok) {
+                            throw new Error(data.error || 'Nieprawidlowy email lub haslo');
+                        }
+
+                        // Store tokens
+                        localStorage.setItem('accessToken', data.accessToken);
+                        localStorage.setItem('refreshToken', data.refreshToken);
+                        localStorage.setItem('user', JSON.stringify(data.user));
+                        localStorage.setItem('lastLoginEmail', this.loginForm.email);
+
+                        // Show overlay with animation
+                        this.overlayText = 'Logowanie pomyslne';
+                        this.overlayStatus = 'Przygotowywanie aplikacji...';
+                        this.showOverlay = true;
+
+                        // Redirect after short delay
+                        setTimeout(() => {
+                            window.location.href = '/';
+                        }, 1200);
+
+                    } catch (error) {
+                        this.showAlert('error', error.message);
+                        this.loading = false;
+                    }
+                },
+
+                async handleRegister() {
+                    this.loading = true;
+                    this.hideAlert();
+                    this.registerErrors = { email: '', password: '', passwordConfirm: '' };
+
+                    // Validate
+                    if (this.registerForm.password !== this.registerForm.passwordConfirm) {
+                        this.registerErrors.passwordConfirm = 'Hasla nie pasuja do siebie';
+                        this.loading = false;
+                        return;
+                    }
+
+                    try {
+                        const response = await fetch('/api/auth/register', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                email: this.registerForm.email,
+                                password: this.registerForm.password
+                            })
+                        });
+
+                        const data = await response.json();
+
+                        if (!response.ok) {
+                            if (data.details) {
+                                data.details.forEach(err => {
+                                    this.registerErrors[err.field] = err.message;
+                                });
+                            }
+                            throw new Error(data.error || 'Blad rejestracji');
+                        }
+
+                        // Store tokens
+                        localStorage.setItem('accessToken', data.accessToken);
+                        localStorage.setItem('refreshToken', data.refreshToken);
+                        localStorage.setItem('user', JSON.stringify(data.user));
+
+                        // Show overlay with animation
+                        this.overlayText = 'Konto utworzone';
+                        this.overlayStatus = 'Przygotowywanie aplikacji...';
+                        this.showOverlay = true;
+
+                        // Redirect after short delay
+                        setTimeout(() => {
+                            window.location.href = '/';
+                        }, 1200);
+
+                    } catch (error) {
+                        this.showAlert('error', error.message);
+                        this.loading = false;
+                    }
+                },
+
+                checkPasswordStrength() {
+                    const password = this.registerForm.password;
+                    let strength = 0;
+
+                    if (password.length >= 12) strength++;
+                    if (/[a-z]/.test(password)) strength++;
+                    if (/[A-Z]/.test(password)) strength++;
+                    if (/[0-9]/.test(password)) strength++;
+                    if (/[^a-zA-Z0-9]/.test(password)) strength++;
+
+                    if (strength <= 2) {
+                        this.passwordStrength = { level: 'weak', text: 'Slabe haslo' };
+                    } else if (strength <= 4) {
+                        this.passwordStrength = { level: 'medium', text: 'Srednie haslo' };
+                    } else {
+                        this.passwordStrength = { level: 'strong', text: 'Silne haslo' };
+                    }
+                },
+
+                showAlert(type, message) {
+                    this.alert = { show: true, type, message };
+                },
+
+                hideAlert() {
+                    this.alert.show = false;
+                }
+            },
+            mounted() {
+                // Check if already logged in
+                const accessToken = localStorage.getItem('accessToken');
+                const user = localStorage.getItem('user');
+                if (accessToken && user) {
+                    window.location.href = '/';
+                    return;
+                }
+
+                // Load cached email from localStorage
+                const cachedEmail = localStorage.getItem('lastLoginEmail');
+                if (cachedEmail) {
+                    this.loginForm.email = cachedEmail;
+                }
+            }
+        }).mount('#app');
+    </script>
+</body>
+</html>
