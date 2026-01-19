@@ -869,9 +869,14 @@ async function loadCompanies() {
             } else {
                 await loadCompanyDetails(activeId)
             }
+        } else {
+            // No companies yet - user needs to register one
+            console.log('No companies found. User should register a company first.')
         }
     } catch (error) {
         console.error('Failed to load companies:', error)
+        // Backend may not have company endpoints yet - this is expected during development
+        companies.value = []
     }
 }
 
@@ -907,6 +912,11 @@ async function loadTeamMembers() {
 }
 
 async function inviteTeamMember() {
+    if (!API.getActiveCompanyId()) {
+        showToast('Błąd', 'Najpierw zarejestruj lub wybierz firmę', '<svg class="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>')
+        return
+    }
+
     if (!teamInviteEmail.value) {
         showToast('Błąd', 'Wprowadź adres email', '<svg class="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>')
         return
@@ -997,7 +1007,7 @@ async function loadTrialStatus() {
 async function startCheckout(planId, interval = 'monthly') {
     try {
         billingLoading.value = true
-        const result = await API.billing.createCheckout(planId, interval)
+        const result = await API.billing.checkout(planId, interval)
 
         if (result.url) {
             window.location.href = result.url
@@ -1013,7 +1023,7 @@ async function startCheckout(planId, interval = 'monthly') {
 async function openBillingPortal() {
     try {
         billingLoading.value = true
-        const result = await API.billing.createPortal()
+        const result = await API.billing.getPortal()
 
         if (result.url) {
             window.location.href = result.url
