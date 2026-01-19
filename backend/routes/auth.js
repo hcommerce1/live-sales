@@ -199,10 +199,14 @@ router.post('/login', validate(loginSchema), async (req, res) => {
       // TODO: Implement TOTP verification
     }
 
-    // Update last login
+    // Update last login and activity timestamp
+    const now = new Date();
     await prisma.user.update({
       where: { id: user.id },
-      data: { lastLoginAt: new Date() }
+      data: {
+        lastLoginAt: now,
+        lastActivityAt: now  // Reset session timeout on login
+      }
     });
 
     // Log successful login
