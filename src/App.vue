@@ -76,6 +76,26 @@ const tokenSaved = ref(false)
 let tokenSaveTimeout = null
 const userEmail = ref('')
 
+// === PR F3: Multi-company, Team, Billing ===
+// Company state
+const companies = ref([])
+const company = ref(null)
+
+// Team state
+const teamMembers = ref([])
+const teamInviteEmail = ref('')
+const teamInviteRole = ref('member')
+const teamInviteLoading = ref(false)
+
+// Subscription & Billing state
+const subscription = ref(null)
+const plans = ref([])
+const capabilities = ref(null)
+const billingLoading = ref(false)
+
+// Trial status
+const trialStatus = ref(null)
+
 // Computed
 const exportsList = computed(() => {
     if (exportsListServer.value.length > 0) {
@@ -829,7 +849,228 @@ function logout() {
     localStorage.removeItem('accessToken')
     localStorage.removeItem('refreshToken')
     localStorage.removeItem('user')
+    localStorage.removeItem('activeCompanyId')
     window.location.href = '/login.html'
+}
+
+// === PR F3: Company, Team, Billing Methods ===
+
+// --- Company Methods ---
+async function loadCompanies() {
+    try {
+        const result = await API.company.getMyCompanies()
+        companies.value = result.companies || []
+
+        // Set active company if not set
+        const activeId = API.getActiveCompanyId()
+        if (companies.value.length > 0) {
+            if (!activeId || !companies.value.find(c => c.id === activeId)) {
+                selectCompany(companies.value[0].id)
+            } else {
+                await loadCompanyDetails(activeId)
+            }
+        }
+    } catch (error) {
+        console.error('Failed to load companies:', error)
+    }
+}
+
+async function loadCompanyDetails(companyId) {
+    try {
+        const result = await API.company.get(companyId)
+        company.value = result.company
+        subscription.value = result.subscription
+    } catch (error) {
+        console.error('Failed to load company details:', error)
+    }
+}
+
+function selectCompany(companyId) {
+    API.setActiveCompanyId(companyId)
+    loadCompanyDetails(companyId)
+    // Reload data for new company context
+    loadExportsFromServer()
+    loadTeamMembers()
+    loadSubscription()
+    loadCapabilities()
+}
+
+// --- Team Methods ---
+async function loadTeamMembers() {
+    try {
+        const result = await API.team.getMembers()
+        teamMembers.value = result.members || []
+    } catch (error) {
+        console.error('Failed to load team members:', error)
+        teamMembers.value = []
+    }
+}
+
+async function inviteTeamMember() {
+    if (!teamInviteEmail.value) {
+        showToast('Błąd', 'Wprowadź adres email', '<svg class="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>')
+        return
+    }
+
+    try {
+        teamInviteLoading.value = true
+        await API.team.invite(teamInviteEmail.value, teamInviteRole.value)
+
+        showToast('Sukces', `Zaproszenie wysłane do ${teamInviteEmail.value}`, '<svg class="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>')
+
+        teamInviteEmail.value = ''
+        teamInviteRole.value = 'member'
+        await loadTeamMembers()
+    } catch (error) {
+        console.error('Failed to invite team member:', error)
+        showToast('Błąd', error.message || 'Nie udało się wysłać zaproszenia', '<svg class="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>')
+    } finally {
+        teamInviteLoading.value = false
+    }
+}
+
+async function changeTeamMemberRole(memberId, newRole) {
+    try {
+        await API.team.changeRole(memberId, newRole)
+        showToast('Sukces', 'Rola została zmieniona', '<svg class="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>')
+        await loadTeamMembers()
+    } catch (error) {
+        console.error('Failed to change role:', error)
+        showToast('Błąd', error.message || 'Nie udało się zmienić roli', '<svg class="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>')
+    }
+}
+
+async function removeTeamMember(memberId) {
+    if (!confirm('Czy na pewno chcesz usunąć tego członka zespołu?')) return
+
+    try {
+        await API.team.remove(memberId)
+        showToast('Sukces', 'Członek zespołu został usunięty', '<svg class="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>')
+        await loadTeamMembers()
+    } catch (error) {
+        console.error('Failed to remove team member:', error)
+        showToast('Błąd', error.message || 'Nie udało się usunąć członka zespołu', '<svg class="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>')
+    }
+}
+
+// --- Billing Methods ---
+async function loadPlans() {
+    try {
+        const result = await API.billing.getPlans()
+        plans.value = result.plans || []
+    } catch (error) {
+        console.error('Failed to load plans:', error)
+        plans.value = []
+    }
+}
+
+async function loadSubscription() {
+    try {
+        const result = await API.billing.getSubscription()
+        subscription.value = result.subscription
+    } catch (error) {
+        console.error('Failed to load subscription:', error)
+        subscription.value = null
+    }
+}
+
+async function loadCapabilities() {
+    try {
+        const result = await API.features.getCapabilities()
+        capabilities.value = result
+    } catch (error) {
+        console.error('Failed to load capabilities:', error)
+        capabilities.value = null
+    }
+}
+
+async function loadTrialStatus() {
+    try {
+        const result = await API.billing.getTrialStatus()
+        trialStatus.value = result
+    } catch (error) {
+        console.error('Failed to load trial status:', error)
+        trialStatus.value = null
+    }
+}
+
+async function startCheckout(planId, interval = 'monthly') {
+    try {
+        billingLoading.value = true
+        const result = await API.billing.createCheckout(planId, interval)
+
+        if (result.url) {
+            window.location.href = result.url
+        }
+    } catch (error) {
+        console.error('Failed to create checkout:', error)
+        showToast('Błąd', error.message || 'Nie udało się utworzyć sesji płatności', '<svg class="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>')
+    } finally {
+        billingLoading.value = false
+    }
+}
+
+async function openBillingPortal() {
+    try {
+        billingLoading.value = true
+        const result = await API.billing.createPortal()
+
+        if (result.url) {
+            window.location.href = result.url
+        }
+    } catch (error) {
+        console.error('Failed to open billing portal:', error)
+        showToast('Błąd', error.message || 'Nie udało się otworzyć portalu płatności', '<svg class="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>')
+    } finally {
+        billingLoading.value = false
+    }
+}
+
+function getRoleBadgeClass(role) {
+    switch (role) {
+        case 'owner': return 'bg-purple-100 text-purple-800'
+        case 'admin': return 'bg-blue-100 text-blue-800'
+        default: return 'bg-gray-100 text-gray-800'
+    }
+}
+
+function getRoleLabel(role) {
+    switch (role) {
+        case 'owner': return 'Właściciel'
+        case 'admin': return 'Administrator'
+        default: return 'Członek'
+    }
+}
+
+function getSubscriptionStatusLabel(status) {
+    switch (status) {
+        case 'active': return 'Aktywna'
+        case 'trialing': return 'Okres próbny'
+        case 'past_due': return 'Zaległości'
+        case 'canceled': return 'Anulowana'
+        case 'unpaid': return 'Nieopłacona'
+        default: return status
+    }
+}
+
+function getSubscriptionStatusClass(status) {
+    switch (status) {
+        case 'active': return 'bg-green-100 text-green-800'
+        case 'trialing': return 'bg-blue-100 text-blue-800'
+        case 'past_due': return 'bg-yellow-100 text-yellow-800'
+        case 'canceled':
+        case 'unpaid': return 'bg-red-100 text-red-800'
+        default: return 'bg-gray-100 text-gray-800'
+    }
+}
+
+function formatDate(dateStr) {
+    if (!dateStr) return '-'
+    return new Date(dateStr).toLocaleDateString('pl-PL', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric'
+    })
 }
 
 // Watchers
@@ -847,6 +1088,13 @@ watch(currentPage, (newPage) => {
     } else if (newPage === 'config') {
         loadBaselinkerToken()
         loadUserEmail()
+    } else if (newPage === 'team') {
+        loadTeamMembers()
+    } else if (newPage === 'subscription') {
+        loadPlans()
+        loadSubscription()
+        loadCapabilities()
+        loadTrialStatus()
     }
 })
 
@@ -896,11 +1144,17 @@ onMounted(async () => {
         })
     }
 
+    // Load companies (PR F3)
+    await loadCompanies()
+
     // Load exports from server
     await loadExportsFromServer()
 
     // Load user email
     await loadUserEmail()
+
+    // Load capabilities (PR F3)
+    await loadCapabilities()
 
     // Auto-refresh exports every 5 minutes
     setInterval(() => {
@@ -956,9 +1210,22 @@ onMounted(async () => {
                         <div class="text-xs text-gray-500">No-Code dla e-commerce</div>
                     </div>
                 </div>
+
+                <!-- Company Selector (PR F3) -->
+                <div v-if="companies.length > 0" class="mt-4">
+                    <select
+                        :value="API.getActiveCompanyId()"
+                        @change="selectCompany($event.target.value)"
+                        class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-gray-50 focus:border-blue-500 focus:outline-none"
+                    >
+                        <option v-for="c in companies" :key="c.id" :value="c.id">
+                            {{ c.name }}
+                        </option>
+                    </select>
+                </div>
             </div>
 
-            <nav class="flex-1 px-3 space-y-1 sidebar-nav">
+            <nav class="flex-1 px-3 space-y-1 sidebar-nav overflow-y-auto">
                 <a href="#" @click.prevent="currentPage = 'dashboard'" :class="{'active': currentPage === 'dashboard'}" class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-100 transition-colors">
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"></path>
@@ -971,12 +1238,28 @@ onMounted(async () => {
                     </svg>
                     Automatyczne eksporty
                 </a>
-                <a href="#" @click.prevent="currentPage = 'buy'" :class="{'active': currentPage === 'buy'}" class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-100 transition-colors">
+
+                <div class="mt-4 mb-2 px-3">
+                    <span class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Firma</span>
+                </div>
+
+                <a href="#" @click.prevent="currentPage = 'team'" :class="{'active': currentPage === 'team'}" class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-100 transition-colors">
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"></path>
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path>
                     </svg>
-                    Chcę kupić
+                    Zespół
                 </a>
+                <a href="#" @click.prevent="currentPage = 'subscription'" :class="{'active': currentPage === 'subscription'}" class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-100 transition-colors">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"></path>
+                    </svg>
+                    Subskrypcja
+                </a>
+
+                <div class="mt-4 mb-2 px-3">
+                    <span class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Ustawienia</span>
+                </div>
+
                 <a href="#" @click.prevent="currentPage = 'config'" :class="{'active': currentPage === 'config'}" class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-100 transition-colors">
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path>
@@ -1616,6 +1899,240 @@ onMounted(async () => {
                                 >
                                     Wyloguj
                                 </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ZESPÓŁ (PR F3) -->
+            <div v-if="currentPage === 'team'" class="p-4 md:p-8">
+                <div class="max-w-4xl mx-auto">
+                    <h1 class="text-2xl md:text-3xl font-bold mb-2">Zespół</h1>
+                    <p class="text-sm md:text-base text-gray-600 mb-8">Zarządzaj członkami zespołu i uprawnieniami</p>
+
+                    <!-- Invite Form -->
+                    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6">
+                        <h2 class="text-lg font-semibold mb-4">Zaproś nowego członka</h2>
+                        <div class="flex flex-col md:flex-row gap-4">
+                            <div class="flex-1">
+                                <input
+                                    v-model="teamInviteEmail"
+                                    type="email"
+                                    placeholder="Adres email"
+                                    class="w-full border-2 border-gray-300 rounded-lg px-4 py-3 focus:border-blue-500 focus:outline-none transition-colors"
+                                >
+                            </div>
+                            <div class="w-full md:w-48">
+                                <select
+                                    v-model="teamInviteRole"
+                                    class="w-full border-2 border-gray-300 rounded-lg px-4 py-3 focus:border-blue-500 focus:outline-none transition-colors bg-white"
+                                >
+                                    <option value="member">Członek</option>
+                                    <option value="admin">Administrator</option>
+                                </select>
+                            </div>
+                            <button
+                                @click="inviteTeamMember"
+                                :disabled="teamInviteLoading"
+                                class="w-full md:w-auto bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition-colors font-medium flex items-center justify-center gap-2 disabled:opacity-50"
+                            >
+                                <svg v-if="teamInviteLoading" class="animate-spin w-5 h-5" fill="none" viewBox="0 0 24 24">
+                                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                                </svg>
+                                <svg v-else class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
+                                </svg>
+                                Zaproś
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Team Members List -->
+                    <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+                        <div class="px-6 py-4 border-b border-gray-200">
+                            <h2 class="text-lg font-semibold">Członkowie zespołu ({{ teamMembers.length }})</h2>
+                        </div>
+
+                        <div v-if="teamMembers.length === 0" class="p-8 text-center text-gray-500">
+                            <svg class="w-16 h-16 mx-auto mb-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                            </svg>
+                            <p>Brak członków zespołu</p>
+                        </div>
+
+                        <div v-else class="divide-y divide-gray-200">
+                            <div v-for="member in teamMembers" :key="member.id" class="px-6 py-4 flex items-center justify-between hover:bg-gray-50">
+                                <div class="flex items-center gap-4">
+                                    <div class="w-10 h-10 bg-gradient-to-br from-blue-400 to-purple-500 rounded-full flex items-center justify-center text-white font-medium">
+                                        {{ member.user?.email?.charAt(0).toUpperCase() || '?' }}
+                                    </div>
+                                    <div>
+                                        <p class="font-medium text-gray-900">{{ member.user?.email || 'Oczekuje' }}</p>
+                                        <p class="text-sm text-gray-500">Dołączył: {{ formatDate(member.joinedAt || member.invitedAt) }}</p>
+                                    </div>
+                                </div>
+
+                                <div class="flex items-center gap-4">
+                                    <span :class="getRoleBadgeClass(member.role)" class="px-3 py-1 rounded-full text-xs font-medium">
+                                        {{ getRoleLabel(member.role) }}
+                                    </span>
+
+                                    <div v-if="member.role !== 'owner'" class="flex items-center gap-2">
+                                        <select
+                                            :value="member.role"
+                                            @change="changeTeamMemberRole(member.id, $event.target.value)"
+                                            class="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:border-blue-500 focus:outline-none bg-white"
+                                        >
+                                            <option value="member">Członek</option>
+                                            <option value="admin">Administrator</option>
+                                        </select>
+
+                                        <button
+                                            @click="removeTeamMember(member.id)"
+                                            class="text-red-600 hover:text-red-800 p-2 hover:bg-red-50 rounded-lg transition-colors"
+                                            title="Usuń członka"
+                                        >
+                                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+                                            </svg>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- SUBSKRYPCJA (PR F3) -->
+            <div v-if="currentPage === 'subscription'" class="p-4 md:p-8">
+                <div class="max-w-5xl mx-auto">
+                    <h1 class="text-2xl md:text-3xl font-bold mb-2">Subskrypcja</h1>
+                    <p class="text-sm md:text-base text-gray-600 mb-8">Zarządzaj planem i płatnościami</p>
+
+                    <!-- Current Subscription -->
+                    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-8">
+                        <h2 class="text-lg font-semibold mb-4">Twoja subskrypcja</h2>
+
+                        <div v-if="subscription" class="space-y-4">
+                            <div class="flex items-center justify-between py-3 border-b border-gray-200">
+                                <div>
+                                    <p class="font-medium text-gray-900">Plan</p>
+                                    <p class="text-sm text-gray-600">{{ subscription.planId?.toUpperCase() || 'Free' }}</p>
+                                </div>
+                                <span :class="getSubscriptionStatusClass(subscription.status)" class="px-3 py-1 rounded-full text-sm font-medium">
+                                    {{ getSubscriptionStatusLabel(subscription.status) }}
+                                </span>
+                            </div>
+
+                            <div v-if="subscription.status === 'trialing'" class="flex items-center justify-between py-3 border-b border-gray-200">
+                                <div>
+                                    <p class="font-medium text-gray-900">Okres próbny kończy się</p>
+                                    <p class="text-sm text-gray-600">{{ formatDate(subscription.trialEnd) }}</p>
+                                </div>
+                                <span class="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm font-medium">
+                                    {{ Math.ceil((new Date(subscription.trialEnd) - new Date()) / (1000 * 60 * 60 * 24)) }} dni
+                                </span>
+                            </div>
+
+                            <div v-if="subscription.currentPeriodEnd" class="flex items-center justify-between py-3 border-b border-gray-200">
+                                <div>
+                                    <p class="font-medium text-gray-900">Następne odnowienie</p>
+                                    <p class="text-sm text-gray-600">{{ formatDate(subscription.currentPeriodEnd) }}</p>
+                                </div>
+                            </div>
+
+                            <div v-if="subscription.cancelAtPeriodEnd" class="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                                <p class="text-yellow-800 font-medium">Subskrypcja zostanie anulowana na koniec okresu rozliczeniowego</p>
+                            </div>
+
+                            <div class="pt-4">
+                                <button
+                                    @click="openBillingPortal"
+                                    :disabled="billingLoading"
+                                    class="bg-gray-100 text-gray-700 px-6 py-3 rounded-lg hover:bg-gray-200 transition-colors font-medium flex items-center gap-2 disabled:opacity-50"
+                                >
+                                    <svg v-if="billingLoading" class="animate-spin w-5 h-5" fill="none" viewBox="0 0 24 24">
+                                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                                    </svg>
+                                    <svg v-else class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path>
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                                    </svg>
+                                    Zarządzaj płatnościami
+                                </button>
+                            </div>
+                        </div>
+
+                        <div v-else class="text-center py-8 text-gray-500">
+                            <svg class="w-16 h-16 mx-auto mb-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"></path>
+                            </svg>
+                            <p>Brak aktywnej subskrypcji</p>
+                            <p class="text-sm mt-1">Wybierz plan poniżej, aby rozpocząć</p>
+                        </div>
+                    </div>
+
+                    <!-- Plans -->
+                    <h2 class="text-xl font-semibold mb-4">Dostępne plany</h2>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <div v-for="plan in plans" :key="plan.id" class="bg-white rounded-xl shadow-sm border-2 p-6" :class="plan.id === subscription?.planId ? 'border-blue-500' : 'border-gray-200'">
+                            <div v-if="plan.id === subscription?.planId" class="text-xs text-blue-600 font-medium mb-2">AKTUALNY PLAN</div>
+                            <h3 class="text-lg font-bold mb-2">{{ plan.name }}</h3>
+                            <div class="text-3xl font-bold mb-4" :class="plan.price.monthlyRaw === 0 ? 'text-gray-600' : 'text-blue-600'">
+                                {{ plan.price.monthly }}
+                                <span v-if="plan.price.monthlyRaw > 0" class="text-sm text-gray-600">/mies</span>
+                            </div>
+
+                            <ul class="text-sm space-y-2 mb-6">
+                                <li v-for="(value, feature) in plan.features" :key="feature" class="flex items-start gap-2">
+                                    <svg v-if="value === true || value > 0" class="w-5 h-5 text-green-500 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                                        <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+                                    </svg>
+                                    <svg v-else class="w-5 h-5 text-red-500 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                                        <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"/>
+                                    </svg>
+                                    <span>{{ feature.replace(/\./g, ' ').replace(/_/g, ' ') }}: {{ typeof value === 'boolean' ? (value ? 'Tak' : 'Nie') : value }}</span>
+                                </li>
+                            </ul>
+
+                            <button
+                                v-if="plan.id !== 'free' && plan.id !== subscription?.planId"
+                                @click="startCheckout(plan.id, 'monthly')"
+                                :disabled="billingLoading || !plan.available"
+                                class="w-full bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition-colors font-medium disabled:opacity-50"
+                            >
+                                {{ subscription?.planId ? 'Zmień plan' : 'Wybierz plan' }}
+                            </button>
+                            <div v-else-if="plan.id === subscription?.planId" class="w-full bg-gray-100 text-gray-600 px-6 py-3 rounded-lg text-center font-medium">
+                                Twój plan
+                            </div>
+                            <div v-else class="w-full bg-gray-50 text-gray-500 px-6 py-3 rounded-lg text-center font-medium">
+                                Plan darmowy
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Capabilities -->
+                    <div v-if="capabilities" class="mt-8 bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+                        <h2 class="text-lg font-semibold mb-4">Twoje limity</h2>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div v-if="capabilities.limits?.exports" class="p-4 bg-gray-50 rounded-lg">
+                                <p class="text-sm text-gray-600">Eksporty</p>
+                                <p class="text-xl font-bold">{{ capabilities.limits.exports.used }} / {{ capabilities.limits.exports.max }}</p>
+                                <div class="mt-2 h-2 bg-gray-200 rounded-full overflow-hidden">
+                                    <div class="h-full bg-blue-600 rounded-full" :style="{ width: `${Math.min(100, (capabilities.limits.exports.used / capabilities.limits.exports.max) * 100)}%` }"></div>
+                                </div>
+                            </div>
+                            <div v-if="capabilities.limits?.teamMembers" class="p-4 bg-gray-50 rounded-lg">
+                                <p class="text-sm text-gray-600">Członkowie zespołu</p>
+                                <p class="text-xl font-bold">{{ capabilities.limits.teamMembers.used }} / {{ capabilities.limits.teamMembers.max }}</p>
+                                <div class="mt-2 h-2 bg-gray-200 rounded-full overflow-hidden">
+                                    <div class="h-full bg-blue-600 rounded-full" :style="{ width: `${Math.min(100, (capabilities.limits.teamMembers.used / capabilities.limits.teamMembers.max) * 100)}%` }"></div>
+                                </div>
                             </div>
                         </div>
                     </div>
