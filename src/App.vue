@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, watch, onMounted, nextTick } from 'vue'
+import { ref, computed, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { MOCK_DATA } from './data.js'
 import { API } from './api.js'
 import Sortable from 'sortablejs'
@@ -96,6 +96,39 @@ const billingLoading = ref(false)
 // Trial status
 const trialStatus = ref(null)
 
+// === Billing UI States (PR F3.1) ===
+
+// Stała: statusy wymagające akcji płatniczej
+const PAYMENT_ISSUE_STATUSES = ['past_due', 'incomplete', 'unpaid', 'incomplete_expired']
+
+// Modal states
+const showCancelConfirm = ref(false)
+const showReactivateConfirm = ref(false)
+const showTrialStartConfirm = ref(false)
+const pendingPlanChange = ref(null) // { planId, interval, planName, price }
+
+// Loading states per action (prevent double-clicks)
+const cancelLoading = ref(false)
+const reactivateLoading = ref(false)
+const trialStartLoading = ref(false)
+const checkoutLoading = ref(false)
+const portalLoading = ref(false)
+
+// Billing interval toggle
+const selectedInterval = ref('monthly')
+
+// Error handling with recovery (type + payload pattern)
+const billingError = ref(null) // { message, action?: { type, ...payload } }
+
+// Stripe return handling
+const billingStatusChecking = ref(false)
+const stripeRetryAbort = ref(null)
+const showManualRefreshBanner = ref(false)
+
+// Member role (for cancel/reactivate visibility)
+const memberRole = ref(null)
+const memberRoleLoading = ref(true) // MUSI być true na start - zapobiega flashowi przycisków
+
 // Computed
 const exportsList = computed(() => {
     if (exportsListServer.value.length > 0) {
@@ -121,6 +154,27 @@ const sampleData = computed(() => {
     return config.value.dataset === 'orders'
         ? MOCK_DATA.sampleOrders
         : MOCK_DATA.sampleProducts
+})
+
+// === Billing Banner Priority ===
+// Priorytet: payment_issue > cancel_scheduled > manual_refresh
+const activeBillingBanner = computed(() => {
+    // Priorytet 1: Problem z płatnością (wymaga natychmiastowej akcji)
+    if (subscription.value && PAYMENT_ISSUE_STATUSES.includes(subscription.value.status)) {
+        return 'payment_issue'
+    }
+
+    // Priorytet 2: Anulowanie zaplanowane (info, ale ważne)
+    if (subscription.value?.cancelAtPeriodEnd) {
+        return 'cancel_scheduled'
+    }
+
+    // Priorytet 3: Manual refresh (fallback po timeout Stripe)
+    if (showManualRefreshBanner.value) {
+        return 'manual_refresh'
+    }
+
+    return null
 })
 
 const filteredGroups = computed(() => {
@@ -1004,9 +1058,299 @@ async function loadTrialStatus() {
     }
 }
 
-async function startCheckout(planId, interval = 'monthly') {
+// === Billing Helpers ===
+
+// Helper: normalizuj ID użytkownika (różne źródła mogą mieć różne nazwy pól)
+function getUserId(userObj) {
+    if (!userObj) return null
+    return userObj.id || userObj.userId || userObj.user_id || null
+}
+
+// Helper: abortable sleep (nie tworzy wielu listenerów)
+function sleepAbortable(ms, signal) {
+    return new Promise((resolve, reject) => {
+        if (signal.aborted) {
+            return reject(new Error('Aborted'))
+        }
+        const timeout = setTimeout(resolve, ms)
+        const onAbort = () => {
+            clearTimeout(timeout)
+            reject(new Error('Aborted'))
+        }
+        signal.addEventListener('abort', onAbort, { once: true })
+    })
+}
+
+// Helper: jeden punkt zakończenia retry
+function finishStripeCheck(showManualBanner = false) {
+    billingStatusChecking.value = false
+    stripeRetryAbort.value = null
+    if (showManualBanner) {
+        showManualRefreshBanner.value = true
+    }
+}
+
+// Helper: bezpieczne usuwanie query params (zachowaj hash i inne params)
+function cleanBillingParams() {
+    const url = new URL(window.location.href)
+    url.searchParams.delete('session_id')
+    url.searchParams.delete('billing')
+    window.history.replaceState({}, document.title, url.toString())
+}
+
+// Helper: bezpieczne odświeżanie danych billing (subscription krytyczny, reszta allSettled)
+async function refreshBillingDataSafe() {
+    // KRYTYCZNE: subscription musi się udać
     try {
-        billingLoading.value = true
+        await loadSubscription()
+    } catch (error) {
+        console.error('Failed to load subscription:', error)
+        setBillingError(
+            'Nie udało się pobrać danych subskrypcji',
+            { type: 'retry_refresh' }
+        )
+        return false
+    }
+
+    // BEST-EFFORT: capabilities i trial (nie blokują UI)
+    const results = await Promise.allSettled([
+        loadCapabilities(),
+        loadTrialStatus()
+    ])
+
+    const failed = results.filter(r => r.status === 'rejected')
+    if (failed.length > 0) {
+        console.warn('Partial billing data refresh failed:', failed)
+    }
+
+    return true
+}
+
+// Load member role for current user
+async function loadMemberRole() {
+    // Nie ustawiaj true tutaj - już jest true na start
+    try {
+        const members = await API.team.list()
+        const user = JSON.parse(localStorage.getItem('user') || 'null')
+        const currentUserId = getUserId(user)
+
+        if (currentUserId && members) {
+            const currentMember = members.find(m => {
+                const memberId = getUserId(m) || getUserId(m.user)
+                return memberId === currentUserId
+            })
+            memberRole.value = currentMember?.role || null
+        }
+    } catch (error) {
+        console.error('Failed to load member role:', error)
+        memberRole.value = null
+    } finally {
+        memberRoleLoading.value = false
+    }
+}
+
+// === Billing Error Handling (type + payload pattern) ===
+function setBillingError(message, action = null) {
+    billingError.value = { message, action }
+}
+
+function clearBillingError() {
+    billingError.value = null
+}
+
+// Dispatcher z walidacją dla recovery actions
+function handleBillingErrorAction() {
+    const action = billingError.value?.action
+    if (!action) return
+
+    clearBillingError()
+
+    switch (action.type) {
+        case 'retry_plan_change':
+            // Walidacja: czy plan nadal istnieje?
+            const plan = plans.value.find(p => p.id === action.planId)
+            if (!plan) {
+                setBillingError('Plan nie jest już dostępny. Odśwież stronę.')
+                return
+            }
+            requestPlanChange(action.planId)
+            break
+
+        case 'retry_cancel':
+            showCancelConfirm.value = true
+            break
+
+        case 'retry_reactivate':
+            showReactivateConfirm.value = true
+            break
+
+        case 'retry_trial':
+            showTrialStartConfirm.value = true
+            break
+
+        case 'retry_refresh':
+            manualRefreshBilling()
+            break
+
+        case 'open_portal':
+            openBillingPortal()
+            break
+
+        default:
+            console.warn('Unknown billing error action:', action.type)
+    }
+}
+
+// === Stripe Return Handling with Retry ===
+async function handleStripeReturn() {
+    const urlParams = new URLSearchParams(window.location.search)
+    const sessionId = urlParams.get('session_id')
+    const billingSuccess = urlParams.get('billing') === 'success'
+    const billingCanceled = urlParams.get('billing') === 'canceled'
+
+    if (!sessionId && !billingSuccess && !billingCanceled) return
+
+    // Wyczyść tylko billing params (zachowaj inne np. utm_source)
+    cleanBillingParams()
+
+    if (billingCanceled) {
+        showToast('Anulowano', 'Płatność została anulowana', '<svg class="w-6 h-6 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>')
+        return
+    }
+
+    // Abort poprzedniego retry jeśli istnieje (np. user wrócił 2x)
+    stripeRetryAbort.value?.abort()
+
+    // Utwórz nowy AbortController
+    const controller = new AbortController()
+    stripeRetryAbort.value = controller
+
+    billingStatusChecking.value = true
+    showManualRefreshBanner.value = false  // reset bannera
+    currentPage.value = 'subscription'
+
+    const maxRetries = 6
+    const baseDelay = 2000  // łącznie ~42s max
+
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+        try {
+            await sleepAbortable(baseDelay * attempt, controller.signal)
+        } catch (e) {
+            // Aborted - czyste wyjście bez side effects
+            finishStripeCheck(false)
+            return
+        }
+
+        // Drugie sprawdzenie po sleep (na wypadek abortu tuż przed)
+        if (controller.signal.aborted) {
+            finishStripeCheck(false)
+            return
+        }
+
+        try {
+            await loadSubscription()
+
+            const sub = subscription.value
+            if (!sub) continue  // Brak subskrypcji - kontynuuj retry
+
+            // SUKCES: aktywny/trialing
+            if (sub.status === 'active' || sub.status === 'trialing') {
+                finishStripeCheck(false)
+                showToast('Sukces', 'Płatność została przetworzona!', '<svg class="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>')
+                await refreshBillingDataSafe()
+                return
+            }
+
+            // DECYZYJNY STAN: payment issue - zakończ retry, UI pokaże banner
+            if (PAYMENT_ISSUE_STATUSES.includes(sub.status)) {
+                finishStripeCheck(false)  // Bez manual banner - payment_issue ma priorytet
+                return
+            }
+
+            // DECYZYJNY STAN: anulowana lub zaplanowane anulowanie
+            if (sub.status === 'canceled' || sub.cancelAtPeriodEnd) {
+                finishStripeCheck(false)  // Stabilny stan
+                return
+            }
+
+            // Inny status (np. w trakcie 3DS) - kontynuuj retry
+        } catch (error) {
+            console.error(`Subscription check attempt ${attempt} failed:`, error)
+            // Kontynuuj retry
+        }
+    }
+
+    // Timeout - pokaż manual refresh banner TYLKO gdy nie mamy żadnego decyzyjnego stanu
+    finishStripeCheck(true)
+}
+
+// === Manual Refresh Billing ===
+async function manualRefreshBilling() {
+    // Guard na double-click
+    if (billingStatusChecking.value) return
+
+    billingStatusChecking.value = true
+    try {
+        const success = await refreshBillingDataSafe()
+
+        if (success) {
+            const sub = subscription.value
+
+            // Schowaj manual banner gdy mamy jakikolwiek "decyzyjny" stan
+            const hasDecisiveState = sub && (
+                PAYMENT_ISSUE_STATUSES.includes(sub.status) ||
+                sub.cancelAtPeriodEnd ||
+                ['active', 'trialing', 'canceled'].includes(sub.status)
+            )
+
+            if (hasDecisiveState) {
+                showManualRefreshBanner.value = false
+
+                // Toast tylko dla sukcesu
+                if (sub.status === 'active' || sub.status === 'trialing') {
+                    showToast('Sukces', 'Subskrypcja aktywna!', '<svg class="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>')
+                }
+            }
+        }
+    } finally {
+        billingStatusChecking.value = false
+    }
+}
+
+// === Plan Change Modal Flow ===
+function requestPlanChange(planId) {
+    if (checkoutLoading.value) return
+
+    const plan = plans.value.find(p => p.id === planId)
+    if (!plan) return
+
+    // Guard: nie otwieraj modala jeśli plan niedostępny dla interwału
+    if (!isPlanAvailableForInterval(plan)) {
+        console.warn('Plan not available for selected interval:', planId, selectedInterval.value)
+        return
+    }
+
+    // Freeze values at request time
+    const interval = selectedInterval.value
+    const price = interval === 'monthly' ? plan.price?.monthly : plan.price?.yearly
+
+    pendingPlanChange.value = {
+        planId,
+        interval,
+        planName: plan.name || planId,
+        price: price || '—'  // Nie powinno być '—' bo mamy guard, ale safety
+    }
+}
+
+async function confirmPlanChange() {
+    if (!pendingPlanChange.value || checkoutLoading.value) return
+
+    const { planId, interval } = pendingPlanChange.value
+
+    try {
+        checkoutLoading.value = true
+        clearBillingError()
+
         const result = await API.billing.checkout(planId, interval)
 
         if (result.url) {
@@ -1014,15 +1358,127 @@ async function startCheckout(planId, interval = 'monthly') {
         }
     } catch (error) {
         console.error('Failed to create checkout:', error)
-        showToast('Błąd', error.message || 'Nie udało się utworzyć sesji płatności', '<svg class="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>')
+        pendingPlanChange.value = null
+        setBillingError(
+            error.message || 'Nie udało się utworzyć sesji płatności',
+            { type: 'retry_plan_change', planId }
+        )
     } finally {
-        billingLoading.value = false
+        checkoutLoading.value = false
     }
 }
 
-async function openBillingPortal() {
+function cancelPlanChange() {
+    pendingPlanChange.value = null
+}
+
+// === Trial Flow ===
+async function startTrial() {
+    if (trialStartLoading.value) return
+
     try {
-        billingLoading.value = true
+        trialStartLoading.value = true
+        clearBillingError()
+
+        await API.billing.startTrial()
+
+        showTrialStartConfirm.value = false
+        showToast('Sukces', 'Okres próbny został aktywowany!', '<svg class="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>')
+
+        // Refresh all billing data safely (subscription krytyczny, reszta best-effort)
+        await refreshBillingDataSafe()
+    } catch (error) {
+        console.error('Failed to start trial:', error)
+        showTrialStartConfirm.value = false
+
+        // Handle "trial already used" gracefully
+        if (error.message?.includes('TRIAL_ALREADY_USED') || error.message?.includes('już został wykorzystany')) {
+            // Refresh to show current state
+            await loadTrialStatus()
+            // Don't show error if trial was used - just show the updated UI
+        } else {
+            setBillingError(
+                error.message || 'Nie udało się uruchomić okresu próbnego',
+                { type: 'retry_trial' }
+            )
+        }
+    } finally {
+        trialStartLoading.value = false
+    }
+}
+
+// === Cancel Subscription ===
+async function confirmCancelSubscription() {
+    if (cancelLoading.value) return
+
+    try {
+        cancelLoading.value = true
+        clearBillingError()
+
+        await API.billing.cancel()
+
+        showCancelConfirm.value = false
+        showToast('Subskrypcja anulowana', 'Twoja subskrypcja zostanie anulowana na koniec okresu rozliczeniowego.', '<svg class="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>')
+
+        await refreshBillingDataSafe()
+    } catch (error) {
+        console.error('Failed to cancel subscription:', error)
+        showCancelConfirm.value = false
+
+        // Handle 403 gracefully - no retry action for permission errors
+        if (error.status === 403 || error.message?.includes('403')) {
+            setBillingError('Tylko właściciel firmy może anulować subskrypcję.')
+        } else {
+            setBillingError(
+                error.message || 'Nie udało się anulować subskrypcji',
+                { type: 'retry_cancel' }
+            )
+        }
+    } finally {
+        cancelLoading.value = false
+    }
+}
+
+// === Reactivate Subscription ===
+async function confirmReactivateSubscription() {
+    if (reactivateLoading.value) return
+
+    try {
+        reactivateLoading.value = true
+        clearBillingError()
+
+        await API.billing.reactivate()
+
+        showReactivateConfirm.value = false
+        showToast('Sukces', 'Twoja subskrypcja została reaktywowana!', '<svg class="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>')
+
+        await refreshBillingDataSafe()
+    } catch (error) {
+        console.error('Failed to reactivate subscription:', error)
+        showReactivateConfirm.value = false
+
+        // Handle 403 gracefully - no retry action for permission errors
+        if (error.status === 403 || error.message?.includes('403')) {
+            setBillingError('Tylko właściciel firmy może reaktywować subskrypcję.')
+        } else {
+            setBillingError(
+                error.message || 'Nie udało się reaktywować subskrypcji',
+                { type: 'retry_reactivate' }
+            )
+        }
+    } finally {
+        reactivateLoading.value = false
+    }
+}
+
+// === Open Billing Portal ===
+async function openBillingPortal() {
+    if (portalLoading.value) return
+
+    try {
+        portalLoading.value = true
+        clearBillingError()
+
         const result = await API.billing.getPortal()
 
         if (result.url) {
@@ -1030,10 +1486,63 @@ async function openBillingPortal() {
         }
     } catch (error) {
         console.error('Failed to open billing portal:', error)
-        showToast('Błąd', error.message || 'Nie udało się otworzyć portalu płatności', '<svg class="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>')
+        setBillingError(
+            error.message || 'Nie udało się otworzyć portalu płatności',
+            { type: 'open_portal' }
+        )
     } finally {
-        billingLoading.value = false
+        portalLoading.value = false
     }
+}
+
+// === Helper: Calculate savings percentage from backend data ===
+function getSavingsPercent(plan) {
+    const monthlyRaw = plan?.price?.monthlyRaw
+    const yearlyRaw = plan?.price?.yearlyRaw
+
+    // Null/undefined/zero guards
+    if (!monthlyRaw || !yearlyRaw || monthlyRaw <= 0) return null
+
+    const monthlyAnnual = monthlyRaw * 12
+    if (monthlyAnnual <= yearlyRaw) return null
+
+    return Math.round((1 - yearlyRaw / monthlyAnnual) * 100)
+}
+
+// === Helper: Check if plan is available for selected interval ===
+function isPlanAvailableForInterval(plan) {
+    if (!plan?.price) return false
+
+    if (selectedInterval.value === 'monthly') {
+        return typeof plan.price.monthlyRaw === 'number' && plan.price.monthlyRaw > 0
+    } else {
+        return typeof plan.price.yearlyRaw === 'number' && plan.price.yearlyRaw > 0
+    }
+}
+
+// === Helper: Get price for selected interval ===
+function getPlanPrice(plan) {
+    if (!plan?.price) return '—'
+    if (!isPlanAvailableForInterval(plan)) return 'Niedostępne'
+
+    return selectedInterval.value === 'monthly'
+        ? plan.price.monthly
+        : plan.price.yearly
+}
+
+// === Helper: Calculate trial days remaining (null-safe) ===
+function getTrialDaysRemaining() {
+    if (!subscription.value?.trialEnd) return null
+    const diff = new Date(subscription.value.trialEnd) - new Date()
+    if (diff <= 0) return 0
+    return Math.ceil(diff / (1000 * 60 * 60 * 24))
+}
+
+// === Helper: Check if any billing action is loading ===
+function isAnyBillingLoading() {
+    return billingLoading.value || cancelLoading.value || reactivateLoading.value ||
+           trialStartLoading.value || checkoutLoading.value || billingStatusChecking.value ||
+           portalLoading.value
 }
 
 function getRoleBadgeClass(role) {
@@ -1058,6 +1567,8 @@ function getSubscriptionStatusLabel(status) {
         case 'trialing': return 'Okres próbny'
         case 'past_due': return 'Zaległości'
         case 'canceled': return 'Anulowana'
+        case 'incomplete': return 'Płatność w toku'
+        case 'incomplete_expired': return 'Płatność wygasła'
         case 'unpaid': return 'Nieopłacona'
         default: return status
     }
@@ -1068,8 +1579,10 @@ function getSubscriptionStatusClass(status) {
         case 'active': return 'bg-green-100 text-green-800'
         case 'trialing': return 'bg-blue-100 text-blue-800'
         case 'past_due': return 'bg-yellow-100 text-yellow-800'
-        case 'canceled':
-        case 'unpaid': return 'bg-red-100 text-red-800'
+        case 'incomplete':
+        case 'incomplete_expired':
+        case 'unpaid':
+        case 'canceled': return 'bg-red-100 text-red-800'
         default: return 'bg-gray-100 text-gray-800'
     }
 }
@@ -1101,10 +1614,12 @@ watch(currentPage, (newPage) => {
     } else if (newPage === 'team') {
         loadTeamMembers()
     } else if (newPage === 'subscription') {
+        clearBillingError()
         loadPlans()
         loadSubscription()
         loadCapabilities()
         loadTrialStatus()
+        loadMemberRole()
     }
 })
 
@@ -1166,12 +1681,20 @@ onMounted(async () => {
     // Load capabilities (PR F3)
     await loadCapabilities()
 
+    // Handle Stripe return (PR F3.1) - check URL params for billing success/cancel
+    await handleStripeReturn()
+
     // Auto-refresh exports every 5 minutes
     setInterval(() => {
         if (currentPage.value === 'exports' || currentPage.value === 'dashboard') {
             loadExportsFromServer()
         }
     }, 5 * 60 * 1000)
+})
+
+// Cleanup on unmount - abort any pending Stripe retry
+onBeforeUnmount(() => {
+    stripeRetryAbort.value?.abort()
 })
 </script>
 
@@ -2016,11 +2539,160 @@ onMounted(async () => {
                 </div>
             </div>
 
-            <!-- SUBSKRYPCJA (PR F3) -->
+            <!-- SUBSKRYPCJA (PR F3.1 - Enhanced) -->
             <div v-if="currentPage === 'subscription'" class="p-4 md:p-8">
                 <div class="max-w-5xl mx-auto">
                     <h1 class="text-2xl md:text-3xl font-bold mb-2">Subskrypcja</h1>
                     <p class="text-sm md:text-base text-gray-600 mb-8">Zarządzaj planem i płatnościami</p>
+
+                    <!-- ERROR BOX - najwyższy priorytet, ZAWSZE widoczny gdy jest błąd -->
+                    <div v-if="billingError" class="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
+                        <div class="flex items-start gap-3">
+                            <svg class="w-5 h-5 text-red-600 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                            </svg>
+                            <div class="flex-1">
+                                <p class="text-red-800 font-medium">{{ billingError.message }}</p>
+                            </div>
+                            <button v-if="billingError.action"
+                                    @click="handleBillingErrorAction"
+                                    class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 text-sm font-medium">
+                                Spróbuj ponownie
+                            </button>
+                            <button @click="clearBillingError" class="p-2 text-red-600 hover:bg-red-100 rounded">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Billing Status Checking Overlay - NIE blokuje error box -->
+                    <div v-if="billingStatusChecking && !billingError" class="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6 flex items-center gap-3">
+                        <svg class="animate-spin w-5 h-5 text-blue-600" fill="none" viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                        </svg>
+                        <span class="text-blue-800 font-medium">Aktualizuję status płatności...</span>
+                    </div>
+
+                    <!-- Trial Eligibility Banner -->
+                    <div v-if="trialStatus?.eligibleForTrial && !subscription"
+                         class="bg-gradient-to-r from-blue-500 to-purple-600 rounded-xl p-6 mb-8 text-white">
+                        <div class="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+                            <div>
+                                <h3 class="text-xl font-bold mb-2">Wypróbuj Plan Pro za darmo!</h3>
+                                <p class="text-blue-100 mb-3">7 dni pełnego dostępu do wszystkich funkcji bez zobowiązań.</p>
+                                <ul class="text-sm text-blue-100 space-y-1">
+                                    <li class="flex items-center gap-2">
+                                        <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg>
+                                        Do 25 eksportów
+                                    </li>
+                                    <li class="flex items-center gap-2">
+                                        <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg>
+                                        Wszystkie integracje
+                                    </li>
+                                    <li class="flex items-center gap-2">
+                                        <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg>
+                                        Priorytetowe wsparcie
+                                    </li>
+                                </ul>
+                            </div>
+                            <button @click="showTrialStartConfirm = true"
+                                    :disabled="trialStartLoading || isAnyBillingLoading()"
+                                    class="bg-white text-blue-600 px-6 py-3 rounded-lg font-bold hover:bg-blue-50 transition-colors disabled:opacity-50 flex items-center gap-2 whitespace-nowrap">
+                                <svg v-if="trialStartLoading" class="animate-spin w-5 h-5" fill="none" viewBox="0 0 24 24">
+                                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                                </svg>
+                                Rozpocznij okres próbny
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Trial Already Used Notice -->
+                    <div v-else-if="trialStatus?.trialStatus?.trialUsed && !subscription"
+                         class="bg-gray-50 border border-gray-200 rounded-lg p-4 mb-6">
+                        <p class="text-gray-600 text-sm">
+                            Okres próbny został już wykorzystany dla tego NIP.
+                            <span v-if="trialStatus?.trialStatus?.trialUsedAt" class="text-gray-500">
+                                ({{ formatDate(trialStatus.trialStatus.trialUsedAt) }})
+                            </span>
+                        </p>
+                    </div>
+
+                    <!-- Payment Issue Banner (past_due, incomplete, unpaid, incomplete_expired) -->
+                    <div v-if="activeBillingBanner === 'payment_issue'"
+                         class="bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-6">
+                        <div class="flex items-start gap-3">
+                            <svg class="w-6 h-6 text-yellow-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                      d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+                            </svg>
+                            <div class="flex-1">
+                                <h4 class="text-yellow-800 font-medium">Problem z płatnością</h4>
+                                <p class="text-yellow-700 text-sm mt-1">
+                                    Ostatnia płatność nie powiodła się. Zaktualizuj metodę płatności, aby uniknąć przerwy w usłudze.
+                                </p>
+                                <button @click="openBillingPortal"
+                                        :disabled="portalLoading"
+                                        class="mt-3 bg-yellow-100 text-yellow-800 px-4 py-2 rounded-lg text-sm font-medium hover:bg-yellow-200 transition-colors inline-flex items-center gap-2 disabled:opacity-50">
+                                    <svg v-if="portalLoading" class="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
+                                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                                    </svg>
+                                    <svg v-else class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                              d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"/>
+                                    </svg>
+                                    Zaktualizuj metodę płatności
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Cancel Scheduled Banner -->
+                    <div v-else-if="activeBillingBanner === 'cancel_scheduled'"
+                         class="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-6">
+                        <div class="flex items-start gap-3">
+                            <svg class="w-6 h-6 text-blue-600 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                            </svg>
+                            <div class="flex-1">
+                                <h4 class="font-medium text-blue-800">Subskrypcja zostanie anulowana</h4>
+                                <p class="text-sm text-blue-700 mt-1">
+                                    Po {{ formatDate(subscription?.currentPeriodEnd) }} konto przejdzie na plan Darmowy.
+                                </p>
+                            </div>
+                            <button v-if="!memberRoleLoading && memberRole === 'owner'"
+                                    @click="showReactivateConfirm = true"
+                                    :disabled="reactivateLoading"
+                                    class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 flex-shrink-0 text-sm font-medium">
+                                {{ reactivateLoading ? 'Reaktywuję...' : 'Reaktywuj' }}
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Manual Refresh Banner - po timeout Stripe -->
+                    <div v-else-if="activeBillingBanner === 'manual_refresh'"
+                         class="bg-yellow-50 border border-yellow-200 rounded-xl p-4 mb-6">
+                        <div class="flex items-start gap-3">
+                            <svg class="w-6 h-6 text-yellow-600 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                            </svg>
+                            <div class="flex-1">
+                                <h4 class="font-medium text-yellow-800">Przetwarzanie płatności</h4>
+                                <p class="text-sm text-yellow-700 mt-1">
+                                    Płatność może być nadal przetwarzana. Kliknij przycisk poniżej, aby sprawdzić status.
+                                </p>
+                            </div>
+                            <button @click="manualRefreshBilling"
+                                    :disabled="billingStatusChecking"
+                                    class="px-4 py-2 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 disabled:opacity-50 flex-shrink-0 text-sm font-medium">
+                                {{ billingStatusChecking ? 'Sprawdzanie...' : 'Sprawdź status' }}
+                            </button>
+                        </div>
+                    </div>
 
                     <!-- Current Subscription -->
                     <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-8">
@@ -2030,41 +2702,53 @@ onMounted(async () => {
                             <div class="flex items-center justify-between py-3 border-b border-gray-200">
                                 <div>
                                     <p class="font-medium text-gray-900">Plan</p>
-                                    <p class="text-sm text-gray-600">{{ subscription.planId?.toUpperCase() || 'Free' }}</p>
+                                    <p class="text-sm text-gray-600">{{ subscription.planId ? subscription.planId.charAt(0).toUpperCase() + subscription.planId.slice(1) : 'Free' }}</p>
                                 </div>
                                 <span :class="getSubscriptionStatusClass(subscription.status)" class="px-3 py-1 rounded-full text-sm font-medium">
                                     {{ getSubscriptionStatusLabel(subscription.status) }}
                                 </span>
                             </div>
 
-                            <div v-if="subscription.status === 'trialing'" class="flex items-center justify-between py-3 border-b border-gray-200">
+                            <div v-if="subscription.status === 'trialing' && subscription.trialEnd" class="flex items-center justify-between py-3 border-b border-gray-200">
                                 <div>
                                     <p class="font-medium text-gray-900">Okres próbny kończy się</p>
                                     <p class="text-sm text-gray-600">{{ formatDate(subscription.trialEnd) }}</p>
                                 </div>
-                                <span class="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm font-medium">
-                                    {{ Math.ceil((new Date(subscription.trialEnd) - new Date()) / (1000 * 60 * 60 * 24)) }} dni
+                                <span v-if="getTrialDaysRemaining() !== null" class="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm font-medium">
+                                    {{ getTrialDaysRemaining() }} dni
                                 </span>
                             </div>
 
-                            <div v-if="subscription.currentPeriodEnd" class="flex items-center justify-between py-3 border-b border-gray-200">
+                            <div v-if="subscription.currentPeriodEnd && subscription.status !== 'trialing'" class="flex items-center justify-between py-3 border-b border-gray-200">
                                 <div>
-                                    <p class="font-medium text-gray-900">Następne odnowienie</p>
+                                    <p class="font-medium text-gray-900">{{ subscription.cancelAtPeriodEnd ? 'Dostęp do' : 'Następne odnowienie' }}</p>
                                     <p class="text-sm text-gray-600">{{ formatDate(subscription.currentPeriodEnd) }}</p>
                                 </div>
                             </div>
 
+                            <!-- Cancel At Period End Warning -->
                             <div v-if="subscription.cancelAtPeriodEnd" class="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-                                <p class="text-yellow-800 font-medium">Subskrypcja zostanie anulowana na koniec okresu rozliczeniowego</p>
+                                <div class="flex items-start gap-3">
+                                    <svg class="w-5 h-5 text-yellow-600 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+                                    </svg>
+                                    <div>
+                                        <p class="text-yellow-800 font-medium">Subskrypcja zostanie anulowana</p>
+                                        <p class="text-yellow-700 text-sm mt-1">
+                                            Po {{ formatDate(subscription.currentPeriodEnd) }} konto przejdzie na plan Darmowy.
+                                        </p>
+                                    </div>
+                                </div>
                             </div>
 
-                            <div class="pt-4">
+                            <!-- Action Buttons -->
+                            <div class="pt-4 flex flex-wrap gap-3">
                                 <button
                                     @click="openBillingPortal"
-                                    :disabled="billingLoading"
+                                    :disabled="portalLoading || isAnyBillingLoading()"
                                     class="bg-gray-100 text-gray-700 px-6 py-3 rounded-lg hover:bg-gray-200 transition-colors font-medium flex items-center gap-2 disabled:opacity-50"
                                 >
-                                    <svg v-if="billingLoading" class="animate-spin w-5 h-5" fill="none" viewBox="0 0 24 24">
+                                    <svg v-if="portalLoading" class="animate-spin w-5 h-5" fill="none" viewBox="0 0 24 24">
                                         <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
                                         <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
                                     </svg>
@@ -2074,6 +2758,36 @@ onMounted(async () => {
                                     </svg>
                                     Zarządzaj płatnościami
                                 </button>
+
+                                <!-- Cancel button - owner only, not for trialing, not already canceling -->
+                                <button
+                                    v-if="!memberRoleLoading && memberRole === 'owner' && !subscription.cancelAtPeriodEnd && subscription.status !== 'trialing' && subscription.status !== 'canceled'"
+                                    @click="showCancelConfirm = true"
+                                    :disabled="isAnyBillingLoading()"
+                                    class="text-red-600 hover:text-red-700 px-4 py-3 rounded-lg hover:bg-red-50 transition-colors font-medium disabled:opacity-50"
+                                >
+                                    Anuluj subskrypcję
+                                </button>
+
+                                <!-- Reactivate button - owner only, when cancelAtPeriodEnd -->
+                                <button
+                                    v-if="!memberRoleLoading && memberRole === 'owner' && subscription.cancelAtPeriodEnd"
+                                    @click="showReactivateConfirm = true"
+                                    :disabled="isAnyBillingLoading()"
+                                    class="bg-green-600 text-white px-6 py-3 rounded-lg hover:bg-green-700 transition-colors font-medium flex items-center gap-2 disabled:opacity-50"
+                                >
+                                    <svg v-if="reactivateLoading" class="animate-spin w-5 h-5" fill="none" viewBox="0 0 24 24">
+                                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                                    </svg>
+                                    Reaktywuj subskrypcję
+                                </button>
+
+                                <!-- Info for non-owners -->
+                                <p v-if="!memberRoleLoading && memberRole && memberRole !== 'owner'"
+                                   class="text-sm text-gray-500 italic py-3">
+                                    Tylko właściciel firmy może zarządzać subskrypcją.
+                                </p>
                             </div>
                         </div>
 
@@ -2086,20 +2800,47 @@ onMounted(async () => {
                         </div>
                     </div>
 
+                    <!-- Billing Interval Toggle -->
+                    <div class="flex justify-center mb-6">
+                        <div class="inline-flex bg-gray-100 rounded-lg p-1">
+                            <button @click="selectedInterval = 'monthly'"
+                                    :class="selectedInterval === 'monthly' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-600 hover:text-gray-900'"
+                                    class="px-4 py-2 rounded-md text-sm font-medium transition-all">
+                                Miesięcznie
+                            </button>
+                            <button @click="selectedInterval = 'yearly'"
+                                    :class="selectedInterval === 'yearly' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-600 hover:text-gray-900'"
+                                    class="px-4 py-2 rounded-md text-sm font-medium transition-all flex items-center gap-2">
+                                Rocznie
+                                <span v-if="plans.length > 0 && getSavingsPercent(plans.find(p => p.id === 'pro'))"
+                                      class="bg-green-100 text-green-800 text-xs px-2 py-0.5 rounded-full">
+                                    -{{ getSavingsPercent(plans.find(p => p.id === 'pro')) }}%
+                                </span>
+                            </button>
+                        </div>
+                    </div>
+
                     <!-- Plans -->
                     <h2 class="text-xl font-semibold mb-4">Dostępne plany</h2>
                     <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-                        <div v-for="plan in plans" :key="plan.id" class="bg-white rounded-xl shadow-sm border-2 p-6" :class="plan.id === subscription?.planId ? 'border-blue-500' : 'border-gray-200'">
+                        <div v-for="plan in plans" :key="plan.id"
+                             class="bg-white rounded-xl shadow-sm border-2 p-6 flex flex-col"
+                             :class="plan.id === subscription?.planId ? 'border-blue-500' : 'border-gray-200'">
                             <div v-if="plan.id === subscription?.planId" class="text-xs text-blue-600 font-medium mb-2">AKTUALNY PLAN</div>
                             <h3 class="text-lg font-bold mb-2">{{ plan.name }}</h3>
-                            <div class="text-3xl font-bold mb-4" :class="plan.price.monthlyRaw === 0 ? 'text-gray-600' : 'text-blue-600'">
-                                {{ plan.price.monthly }}
-                                <span v-if="plan.price.monthlyRaw > 0" class="text-sm text-gray-600">/mies</span>
+                            <div class="text-3xl font-bold mb-1" :class="plan.price?.monthlyRaw === 0 ? 'text-gray-600' : 'text-blue-600'">
+                                {{ getPlanPrice(plan) }}
+                                <span v-if="plan.price?.monthlyRaw > 0" class="text-sm text-gray-600">/{{ selectedInterval === 'monthly' ? 'mies' : 'rok' }}</span>
                             </div>
+                            <p v-if="selectedInterval === 'yearly' && plan.price?.yearlyRaw > 0 && getSavingsPercent(plan)"
+                               class="text-sm text-green-600 mb-4">
+                                Oszczędzasz {{ getSavingsPercent(plan) }}% rocznie
+                            </p>
+                            <div v-else class="mb-4"></div>
 
-                            <ul class="text-sm space-y-2 mb-6">
+                            <ul class="text-sm space-y-2 mb-6 flex-1">
                                 <li v-for="(value, feature) in plan.features" :key="feature" class="flex items-start gap-2">
-                                    <svg v-if="value === true || value > 0" class="w-5 h-5 text-green-500 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                                    <svg v-if="value === true || (typeof value === 'number' && value > 0)" class="w-5 h-5 text-green-500 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
                                         <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
                                     </svg>
                                     <svg v-else class="w-5 h-5 text-red-500 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
@@ -2111,11 +2852,12 @@ onMounted(async () => {
 
                             <button
                                 v-if="plan.id !== 'free' && plan.id !== subscription?.planId"
-                                @click="startCheckout(plan.id, 'monthly')"
-                                :disabled="billingLoading || !plan.available"
-                                class="w-full bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition-colors font-medium disabled:opacity-50"
+                                @click="requestPlanChange(plan.id)"
+                                :disabled="isAnyBillingLoading() || !isPlanAvailableForInterval(plan)"
+                                :title="!isPlanAvailableForInterval(plan) ? 'Niedostępne w tym interwale rozliczeniowym' : ''"
+                                class="w-full bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
                             >
-                                {{ subscription?.planId ? 'Zmień plan' : 'Wybierz plan' }}
+                                {{ !isPlanAvailableForInterval(plan) ? 'Niedostępne' : (subscription?.planId && subscription.planId !== 'free' ? 'Zmień plan' : 'Wybierz plan') }}
                             </button>
                             <div v-else-if="plan.id === subscription?.planId" class="w-full bg-gray-100 text-gray-600 px-6 py-3 rounded-lg text-center font-medium">
                                 Twój plan
@@ -2127,21 +2869,23 @@ onMounted(async () => {
                     </div>
 
                     <!-- Capabilities -->
-                    <div v-if="capabilities" class="mt-8 bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+                    <div v-if="capabilities?.limits" class="mt-8 bg-white rounded-xl shadow-sm border border-gray-200 p-6">
                         <h2 class="text-lg font-semibold mb-4">Twoje limity</h2>
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div v-if="capabilities.limits?.exports" class="p-4 bg-gray-50 rounded-lg">
+                            <div v-if="capabilities.limits.exports" class="p-4 bg-gray-50 rounded-lg">
                                 <p class="text-sm text-gray-600">Eksporty</p>
-                                <p class="text-xl font-bold">{{ capabilities.limits.exports.used }} / {{ capabilities.limits.exports.max }}</p>
+                                <p class="text-xl font-bold">{{ capabilities.limits.exports.used || 0 }} / {{ capabilities.limits.exports.max || 0 }}</p>
                                 <div class="mt-2 h-2 bg-gray-200 rounded-full overflow-hidden">
-                                    <div class="h-full bg-blue-600 rounded-full" :style="{ width: `${Math.min(100, (capabilities.limits.exports.used / capabilities.limits.exports.max) * 100)}%` }"></div>
+                                    <div class="h-full bg-blue-600 rounded-full transition-all"
+                                         :style="{ width: `${capabilities.limits.exports.max ? Math.min(100, ((capabilities.limits.exports.used || 0) / capabilities.limits.exports.max) * 100) : 0}%` }"></div>
                                 </div>
                             </div>
-                            <div v-if="capabilities.limits?.teamMembers" class="p-4 bg-gray-50 rounded-lg">
+                            <div v-if="capabilities.limits.teamMembers" class="p-4 bg-gray-50 rounded-lg">
                                 <p class="text-sm text-gray-600">Członkowie zespołu</p>
-                                <p class="text-xl font-bold">{{ capabilities.limits.teamMembers.used }} / {{ capabilities.limits.teamMembers.max }}</p>
+                                <p class="text-xl font-bold">{{ capabilities.limits.teamMembers.used || 0 }} / {{ capabilities.limits.teamMembers.max || 0 }}</p>
                                 <div class="mt-2 h-2 bg-gray-200 rounded-full overflow-hidden">
-                                    <div class="h-full bg-blue-600 rounded-full" :style="{ width: `${Math.min(100, (capabilities.limits.teamMembers.used / capabilities.limits.teamMembers.max) * 100)}%` }"></div>
+                                    <div class="h-full bg-blue-600 rounded-full transition-all"
+                                         :style="{ width: `${capabilities.limits.teamMembers.max ? Math.min(100, ((capabilities.limits.teamMembers.used || 0) / capabilities.limits.teamMembers.max) * 100) : 0}%` }"></div>
                                 </div>
                             </div>
                         </div>
@@ -2473,6 +3217,194 @@ onMounted(async () => {
                     </button>
                     <button @click="deleteExport(deleteConfirm)" class="flex-1 bg-red-600 text-white px-4 py-3 rounded-lg hover:bg-red-700 transition-colors font-medium">
                         Usuń
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Cancel Subscription Confirmation Modal -->
+        <div v-if="showCancelConfirm" @click.self="showCancelConfirm = false" class="fixed inset-0 bg-black bg-opacity-50 modal-backdrop flex items-center justify-center z-50 p-4 md:p-6">
+            <div class="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6">
+                <div class="flex items-center gap-3 mb-4">
+                    <div class="w-12 h-12 rounded-full bg-red-100 flex items-center justify-center">
+                        <svg class="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                  d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+                        </svg>
+                    </div>
+                    <h3 class="text-xl font-bold text-gray-900">Anulowanie subskrypcji</h3>
+                </div>
+
+                <div class="mb-6 space-y-3">
+                    <p class="text-gray-600">Czy na pewno chcesz anulować subskrypcję?</p>
+                    <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                        <p class="text-sm text-yellow-800 font-medium">Co się stanie:</p>
+                        <ul class="text-sm text-yellow-700 mt-2 space-y-1">
+                            <li>• Zachowasz dostęp do końca okresu rozliczeniowego</li>
+                            <li>• Po tym czasie konto przejdzie na plan Darmowy</li>
+                            <li>• Możesz reaktywować przed końcem okresu</li>
+                        </ul>
+                    </div>
+                    <p v-if="subscription?.currentPeriodEnd" class="text-sm text-gray-500">
+                        Dostęp do {{ formatDate(subscription.currentPeriodEnd) }}
+                    </p>
+                </div>
+
+                <div class="flex gap-3">
+                    <button @click="showCancelConfirm = false"
+                            :disabled="cancelLoading"
+                            class="flex-1 bg-gray-100 text-gray-700 px-4 py-3 rounded-lg hover:bg-gray-200 transition-colors font-medium disabled:opacity-50">
+                        Nie, zachowaj
+                    </button>
+                    <button @click="confirmCancelSubscription"
+                            :disabled="cancelLoading"
+                            class="flex-1 bg-red-600 text-white px-4 py-3 rounded-lg hover:bg-red-700 transition-colors font-medium flex items-center justify-center gap-2 disabled:opacity-50">
+                        <svg v-if="cancelLoading" class="animate-spin w-5 h-5" fill="none" viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                        </svg>
+                        Tak, anuluj
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Reactivate Subscription Confirmation Modal -->
+        <div v-if="showReactivateConfirm" @click.self="showReactivateConfirm = false" class="fixed inset-0 bg-black bg-opacity-50 modal-backdrop flex items-center justify-center z-50 p-4 md:p-6">
+            <div class="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6">
+                <div class="flex items-center gap-3 mb-4">
+                    <div class="w-12 h-12 rounded-full bg-green-100 flex items-center justify-center">
+                        <svg class="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                        </svg>
+                    </div>
+                    <h3 class="text-xl font-bold text-gray-900">Reaktywacja subskrypcji</h3>
+                </div>
+
+                <div class="mb-6">
+                    <p class="text-gray-600 mb-3">Czy chcesz reaktywować subskrypcję?</p>
+                    <div class="bg-green-50 border border-green-200 rounded-lg p-4">
+                        <p class="text-sm text-green-800 font-medium">Co się stanie:</p>
+                        <ul class="text-sm text-green-700 mt-2 space-y-1">
+                            <li>• Subskrypcja zostanie wznowiona</li>
+                            <li>• Następna płatność będzie naliczona zgodnie z harmonogramem</li>
+                            <li>• Zachowasz wszystkie funkcje planu</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <div class="flex gap-3">
+                    <button @click="showReactivateConfirm = false"
+                            :disabled="reactivateLoading"
+                            class="flex-1 bg-gray-100 text-gray-700 px-4 py-3 rounded-lg hover:bg-gray-200 transition-colors font-medium disabled:opacity-50">
+                        Anuluj
+                    </button>
+                    <button @click="confirmReactivateSubscription"
+                            :disabled="reactivateLoading"
+                            class="flex-1 bg-green-600 text-white px-4 py-3 rounded-lg hover:bg-green-700 transition-colors font-medium flex items-center justify-center gap-2 disabled:opacity-50">
+                        <svg v-if="reactivateLoading" class="animate-spin w-5 h-5" fill="none" viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                        </svg>
+                        Reaktywuj
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Trial Start Confirmation Modal -->
+        <div v-if="showTrialStartConfirm" @click.self="showTrialStartConfirm = false" class="fixed inset-0 bg-black bg-opacity-50 modal-backdrop flex items-center justify-center z-50 p-4 md:p-6">
+            <div class="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6">
+                <div class="flex items-center gap-3 mb-4">
+                    <div class="w-12 h-12 rounded-full bg-blue-100 flex items-center justify-center">
+                        <svg class="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                  d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                        </svg>
+                    </div>
+                    <h3 class="text-xl font-bold text-gray-900">Rozpocznij okres próbny</h3>
+                </div>
+
+                <div class="mb-6">
+                    <p class="text-gray-600 mb-3">Otrzymasz 7 dni pełnego dostępu do planu Pro.</p>
+                    <div class="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                        <p class="text-sm text-blue-800 font-medium">Co obejmuje okres próbny:</p>
+                        <ul class="text-sm text-blue-700 mt-2 space-y-1">
+                            <li>• Do 25 eksportów</li>
+                            <li>• Harmonogram co 1 minutę</li>
+                            <li>• Wszystkie integracje</li>
+                            <li>• Do 10 członków zespołu</li>
+                        </ul>
+                    </div>
+                    <p class="text-sm text-gray-500 mt-3">
+                        Po zakończeniu okresu próbnego konto przejdzie na plan Darmowy, chyba że wybierzesz płatny plan.
+                    </p>
+                </div>
+
+                <div class="flex gap-3">
+                    <button @click="showTrialStartConfirm = false"
+                            :disabled="trialStartLoading"
+                            class="flex-1 bg-gray-100 text-gray-700 px-4 py-3 rounded-lg hover:bg-gray-200 transition-colors font-medium disabled:opacity-50">
+                        Anuluj
+                    </button>
+                    <button @click="startTrial"
+                            :disabled="trialStartLoading"
+                            class="flex-1 bg-blue-600 text-white px-4 py-3 rounded-lg hover:bg-blue-700 transition-colors font-medium flex items-center justify-center gap-2 disabled:opacity-50">
+                        <svg v-if="trialStartLoading" class="animate-spin w-5 h-5" fill="none" viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                        </svg>
+                        Rozpocznij
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Plan Change Confirmation Modal -->
+        <div v-if="pendingPlanChange" @click.self="cancelPlanChange" class="fixed inset-0 bg-black bg-opacity-50 modal-backdrop flex items-center justify-center z-50 p-4 md:p-6">
+            <div class="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6">
+                <div class="flex items-center gap-3 mb-4">
+                    <div class="w-12 h-12 rounded-full bg-blue-100 flex items-center justify-center">
+                        <svg class="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                  d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"/>
+                        </svg>
+                    </div>
+                    <h3 class="text-xl font-bold text-gray-900">Zmiana planu</h3>
+                </div>
+
+                <div class="mb-6 space-y-4">
+                    <div class="flex items-center justify-between py-2 border-b border-gray-200">
+                        <span class="text-gray-600">Aktualny plan</span>
+                        <span class="font-medium">{{ subscription?.planId ? subscription.planId.charAt(0).toUpperCase() + subscription.planId.slice(1) : 'Free' }}</span>
+                    </div>
+                    <div class="flex items-center justify-between py-2 border-b border-gray-200">
+                        <span class="text-gray-600">Nowy plan</span>
+                        <span class="font-medium text-blue-600">{{ pendingPlanChange.planName }}</span>
+                    </div>
+                    <div class="flex items-center justify-between py-2 border-b border-gray-200">
+                        <span class="text-gray-600">Cena</span>
+                        <span class="font-medium">{{ pendingPlanChange.price }}/{{ pendingPlanChange.interval === 'monthly' ? 'mies' : 'rok' }}</span>
+                    </div>
+                    <p class="text-sm text-gray-500">
+                        Zostaniesz przekierowany do Stripe, aby dokończyć płatność.
+                    </p>
+                </div>
+
+                <div class="flex gap-3">
+                    <button @click="cancelPlanChange"
+                            :disabled="checkoutLoading"
+                            class="flex-1 bg-gray-100 text-gray-700 px-4 py-3 rounded-lg hover:bg-gray-200 transition-colors font-medium disabled:opacity-50">
+                        Anuluj
+                    </button>
+                    <button @click="confirmPlanChange"
+                            :disabled="checkoutLoading"
+                            class="flex-1 bg-blue-600 text-white px-4 py-3 rounded-lg hover:bg-blue-700 transition-colors font-medium flex items-center justify-center gap-2 disabled:opacity-50">
+                        <svg v-if="checkoutLoading" class="animate-spin w-5 h-5" fill="none" viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                        </svg>
+                        Kontynuuj do płatności
                     </button>
                 </div>
             </div>
