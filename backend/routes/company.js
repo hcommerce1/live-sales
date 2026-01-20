@@ -8,12 +8,12 @@
 const express = require('express');
 const router = express.Router();
 const { z } = require('zod');
-const argon2 = require('argon2');
 
 const companyService = require('../services/company.service');
 const authMiddleware = require('../middleware/auth');
 const featureFlags = require('../utils/feature-flags');
 const logger = require('../utils/logger');
+const passwordService = require('../utils/password');
 
 // ============================================
 // Validation Schemas
@@ -149,13 +149,8 @@ router.post('/register', requireNipRegistration, validateBody(registerCompanySch
       startTrial,
     } = req.validatedBody;
 
-    // Hash password
-    const hashedPassword = await argon2.hash(password, {
-      type: argon2.argon2id,
-      memoryCost: 65536,
-      timeCost: 3,
-      parallelism: 4,
-    });
+    // Hash password (using passwordService to include pepper)
+    const hashedPassword = await passwordService.hash(password);
 
     const result = await companyService.registerCompany({
       nip,
