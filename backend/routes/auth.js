@@ -123,9 +123,9 @@ router.post('/login', validate(loginSchema), async (req, res) => {
   try {
     const { email, password, twoFactorCode } = req.body;
 
-    // Find user
+    // Find user (email is stored lowercase)
     const user = await prisma.user.findUnique({
-      where: { email },
+      where: { email: email.toLowerCase() },
       select: {
         id: true,
         email: true,
