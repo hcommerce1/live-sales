@@ -26,15 +26,6 @@ const lookupNipSchema = z.object({
 const registerCompanySchema = z.object({
   nip: z.string().min(10).max(13),
   name: z.string().min(2).max(255),
-  regon: z.string().max(14).optional(),
-  krs: z.string().max(10).optional(),
-  address: z.object({
-    street: z.string().max(255).optional(),
-    city: z.string().max(100).optional(),
-    postalCode: z.string().max(10).optional(),
-    country: z.string().length(2).default('PL'),
-  }).optional(),
-  vatStatus: z.enum(['active', 'exempt', 'inactive']).optional(),
   // User data
   email: z.string().email(),
   password: z.string().min(12).max(128),
@@ -153,10 +144,6 @@ router.post('/register', requireNipRegistration, validateBody(registerCompanySch
     const {
       nip,
       name,
-      regon,
-      krs,
-      address,
-      vatStatus,
       email,
       password,
       startTrial,
@@ -173,10 +160,6 @@ router.post('/register', requireNipRegistration, validateBody(registerCompanySch
     const result = await companyService.registerCompany({
       nip,
       name,
-      regon,
-      krs,
-      address,
-      vatStatus,
       ownerEmail: email,
       ownerPassword: hashedPassword,
       startTrial,
