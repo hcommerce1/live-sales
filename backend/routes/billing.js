@@ -364,11 +364,18 @@ router.post(
     } catch (error) {
       logger.error('Failed to create checkout', {
         error: error.message,
+        stack: error.stack,
+        stripeCode: error.code,
+        stripeType: error.type,
         companyId: req.company?.id,
+        planId: req.body.planId,
+        interval: req.body.interval,
       });
+      console.error('STRIPE CHECKOUT ERROR:', error);
       res.status(500).json({
         error: 'Failed to create checkout session',
         code: 'CHECKOUT_ERROR',
+        details: process.env.NODE_ENV === 'development' ? error.message : undefined,
       });
     }
   }
