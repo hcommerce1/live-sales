@@ -101,10 +101,8 @@ router.post('/register', validate(registerSchema), async (req, res) => {
   } catch (error) {
     logger.error('Registration failed', {
       error: error.message,
-      stack: error.stack,
       email: req.body.email
     });
-    console.error('Full registration error:', error); // Extra logging
 
     res.status(500).json({
       error: 'Registration failed',
@@ -186,17 +184,13 @@ router.post('/login', validate(loginSchema), async (req, res) => {
     }
 
     // Check 2FA if enabled
+    // SECURITY: 2FA verification not yet implemented - block login if 2FA enabled
     if (user.twoFactorEnabled) {
-      if (!twoFactorCode) {
-        return res.status(200).json({
-          requiresTwoFactor: true,
-          message: 'Two-factor authentication required',
-        });
-      }
-
-      // Verify 2FA code (implementation needed - using TOTP library)
-      // For now, skip 2FA verification
-      // TODO: Implement TOTP verification
+      logger.warn('Login blocked - 2FA enabled but not implemented', { userId: user.id });
+      return res.status(403).json({
+        error: '2FA is enabled but verification is not yet available. Please contact support.',
+        code: '2FA_NOT_IMPLEMENTED'
+      });
     }
 
     // Update last login and activity timestamp
@@ -258,10 +252,8 @@ router.post('/login', validate(loginSchema), async (req, res) => {
   } catch (error) {
     logger.error('Login failed', {
       error: error.message,
-      stack: error.stack,
       email: req.body.email
     });
-    console.error('Full login error:', error); // Extra logging
 
     res.status(500).json({
       error: 'Login failed',

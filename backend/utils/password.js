@@ -20,11 +20,14 @@ class PasswordService {
     const pepper = process.env.PASSWORD_PEPPER;
 
     if (!pepper) {
-      logger.warn('PASSWORD_PEPPER not set - passwords will not use pepper');
+      // SECURITY: Pepper is required in production
+      if (process.env.NODE_ENV === 'production') {
+        throw new Error('PASSWORD_PEPPER is required in production');
+      }
+      logger.warn('PASSWORD_PEPPER not set - using empty pepper (development only)');
       this.pepper = '';
     } else if (pepper.length < 32) {
-      logger.error('PASSWORD_PEPPER must be at least 32 characters');
-      throw new Error('Invalid password pepper');
+      throw new Error('PASSWORD_PEPPER must be at least 32 characters');
     } else {
       this.pepper = pepper;
     }

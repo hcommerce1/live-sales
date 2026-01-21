@@ -21,14 +21,13 @@ function getStripe() {
     if (!process.env.STRIPE_SECRET_KEY) {
       throw new Error('STRIPE_SECRET_KEY is not configured');
     }
-    const keyPrefix = process.env.STRIPE_SECRET_KEY.substring(0, 8);
-    logger.info('Initializing Stripe with key prefix: ' + keyPrefix + '...');
-    console.log('STRIPE KEY PREFIX:', keyPrefix);
 
     const Stripe = require('stripe');
     stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
       apiVersion: '2023-10-16',
     });
+
+    logger.info('Stripe client initialized');
   }
   return stripe;
 }
