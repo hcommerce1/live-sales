@@ -116,7 +116,17 @@ function applyFilters(data, filterConfig) {
         return true;
       }
 
-      const conditionResults = group.conditions.map(condition => {
+      // Filter out empty conditions (no field or no operator)
+      const validConditions = group.conditions.filter(c =>
+        c.field && c.operator && c.field.trim() !== '' && c.operator.trim() !== ''
+      );
+
+      // If no valid conditions, pass all records
+      if (validConditions.length === 0) {
+        return true;
+      }
+
+      const conditionResults = validConditions.map(condition => {
         const value = record[condition.field];
         return evaluateCondition(value, condition.operator, condition.value);
       });
@@ -156,6 +166,12 @@ function splitFilters(filterConfig, dataset) {
     const appConditions = [];
 
     for (const condition of group.conditions || []) {
+      // Skip empty conditions
+      if (!condition.field || !condition.operator ||
+          condition.field.trim() === '' || condition.operator.trim() === '') {
+        continue;
+      }
+
       // Check if this filter can be handled by API
       let handledByApi = false;
 
