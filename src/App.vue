@@ -644,6 +644,9 @@ async function handleWizardSave(exportConfig) {
     try {
         isLoading.value = true
 
+        // Check if this is a NEW export (not editing existing one)
+        const isNewExport = !wizardEditingExportId.value
+
         // Transform wizard config to API format
         const apiConfig = {
             id: wizardEditingExportId.value || ('export-' + Date.now()),
@@ -665,11 +668,36 @@ async function handleWizardSave(exportConfig) {
         await API.exports.save(apiConfig)
         await loadExportsFromServer()
 
-        showToast(
-            'Zapisano',
-            'Eksport został zapisany pomyślnie',
-            '<svg class="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>'
-        )
+        // If this is a NEW export, run it immediately to populate data
+        if (isNewExport) {
+            showToast(
+                'Zapisano',
+                'Eksport zapisany. Trwa pierwsze uruchomienie...',
+                '<svg class="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>'
+            )
+
+            try {
+                const result = await API.exports.run(apiConfig.id)
+                showToast(
+                    'Sukces',
+                    `Eksport uruchomiony! Zapisano ${result?.recordsWritten || 0} rekordów do arkusza.`,
+                    '<svg class="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>'
+                )
+            } catch (runError) {
+                console.error('Failed to run export after save:', runError)
+                showToast(
+                    'Uwaga',
+                    'Eksport zapisany, ale pierwsze uruchomienie nie powiodło się: ' + runError.message,
+                    '<svg class="w-6 h-6 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>'
+                )
+            }
+        } else {
+            showToast(
+                'Zapisano',
+                'Eksport został zapisany pomyślnie',
+                '<svg class="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>'
+            )
+        }
 
         // Return to exports list
         currentPage.value = 'exports'
