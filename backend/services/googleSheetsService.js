@@ -108,6 +108,103 @@ class GoogleSheetsService {
   }
 
   /**
+   * Convert column number to letter (1 = A, 27 = AA, 200 = GR)
+   * @param {number} col - Column number (1-based)
+   * @returns {string} - Column letter(s)
+   */
+  columnToLetter(col) {
+    let letter = '';
+    while (col > 0) {
+      const remainder = (col - 1) % 26;
+      letter = String.fromCharCode(65 + remainder) + letter;
+      col = Math.floor((col - 1) / 26);
+    }
+    return letter;
+  }
+
+  /**
+   * Ensure sheet has enough rows and columns
+   * @param {string} spreadsheetId - Spreadsheet ID
+   * @param {string} sheetName - Sheet name
+   * @param {number} requiredRows - Required number of rows
+   * @param {number} requiredCols - Required number of columns
+   */
+  async ensureSheetSize(spreadsheetId, sheetName, requiredRows, requiredCols) {
+    try {
+      const spreadsheet = await this.sheets.spreadsheets.get({
+        spreadsheetId: spreadsheetId,
+      });
+
+      const sheet = spreadsheet.data.sheets.find(
+        s => s.properties.title === sheetName
+      );
+
+      if (!sheet) {
+        throw new Error(`Sheet "${sheetName}" not found`);
+      }
+
+      const currentRows = sheet.properties.gridProperties.rowCount;
+      const currentCols = sheet.properties.gridProperties.columnCount;
+      const sheetId = sheet.properties.sheetId;
+
+      logger.info('[SHEETS] Checking sheet size', {
+        sheetName,
+        currentRows,
+        currentCols,
+        requiredRows,
+        requiredCols
+      });
+
+      const requests = [];
+
+      // Expand columns if needed
+      if (requiredCols > currentCols) {
+        logger.info('[SHEETS] Expanding columns', {
+          from: currentCols,
+          to: requiredCols
+        });
+        requests.push({
+          appendDimension: {
+            sheetId: sheetId,
+            dimension: 'COLUMNS',
+            length: requiredCols - currentCols
+          }
+        });
+      }
+
+      // Expand rows if needed
+      if (requiredRows > currentRows) {
+        logger.info('[SHEETS] Expanding rows', {
+          from: currentRows,
+          to: requiredRows
+        });
+        requests.push({
+          appendDimension: {
+            sheetId: sheetId,
+            dimension: 'ROWS',
+            length: requiredRows - currentRows
+          }
+        });
+      }
+
+      if (requests.length > 0) {
+        await this.sheets.spreadsheets.batchUpdate({
+          spreadsheetId: spreadsheetId,
+          resource: { requests }
+        });
+        logger.info('[SHEETS] Sheet expanded successfully');
+      }
+    } catch (error) {
+      logger.error('[SHEETS] Failed to ensure sheet size', {
+        error: error.message,
+        spreadsheetId,
+        sheetName
+      });
+      throw error;
+    }
+  }
+
+  /**
    * Write data to Google Sheets
    * @param {string} sheetUrl - Google Sheets URL
    * @param {Array<string>} headers - Column headers
@@ -157,7 +254,21 @@ class GoogleSheetsService {
         }
       }
 
-      const range = `${sheetName}!A:Z`;
+      // Calculate required size and dynamic column range
+      const requiredCols = headers.length;
+      const requiredRows = data.length + 10; // Extra buffer
+      const lastColLetter = this.columnToLetter(requiredCols);
+      const range = `${sheetName}!A:${lastColLetter}`;
+
+      logger.info(`[SHEETS WRITE] Calculated range`, {
+        requiredCols,
+        requiredRows,
+        lastColLetter,
+        range
+      });
+
+      // Ensure sheet has enough rows and columns
+      await this.ensureSheetSize(sheetId, sheetName, requiredRows, requiredCols);
 
       if (writeMode === 'replace') {
         // Clear existing data
@@ -189,10 +300,10 @@ class GoogleSheetsService {
         };
       } else {
         // 'append' mode - insert at top (after header)
-        // First, check if sheet has headers
+        // First, check if sheet has headers (using dynamic column range)
         const existingData = await this.sheets.spreadsheets.values.get({
           spreadsheetId: sheetId,
-          range: `${sheetName}!A1:Z1`,
+          range: `${sheetName}!A1:${lastColLetter}1`,
         });
 
         let hasHeaders = false;
