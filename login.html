@@ -27,6 +27,14 @@
             max-width: 450px;
         }
 
+        /* Hide content until Vue checks auth */
+        #app[v-cloak] {
+            display: none !important;
+        }
+        [v-cloak] {
+            display: none !important;
+        }
+
         .auth-container {
             background: white;
             border-radius: 16px;
@@ -422,7 +430,7 @@
     </style>
 </head>
 <body>
-    <div id="app">
+    <div id="app" v-cloak>
         <!-- Full screen loading overlay -->
         <div class="loading-overlay" :class="{ visible: showOverlay }">
             <div class="overlay-content">

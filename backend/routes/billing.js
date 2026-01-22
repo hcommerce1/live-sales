@@ -144,6 +144,7 @@ router.get(
           success: true,
           subscription: null,
           plan: getPlan('free'),
+          hasStripeCustomer: !!req.company.stripeCustomerId,
         });
       }
 
@@ -160,6 +161,7 @@ router.get(
           cancelAtPeriodEnd: subscription.cancelAtPeriodEnd,
         },
         plan,
+        hasStripeCustomer: !!req.company.stripeCustomerId,
       });
     } catch (error) {
       logger.error('Failed to get subscription', {

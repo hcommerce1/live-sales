@@ -92,6 +92,7 @@ const subscription = ref(null)
 const plans = ref([])
 const capabilities = ref(null)
 const billingLoading = ref(false)
+const hasStripeCustomer = ref(false) // Czy firma ma konto Stripe (może otwierać portal)
 
 // Trial status
 const trialStatus = ref(null)
@@ -1032,9 +1033,11 @@ async function loadSubscription() {
     try {
         const result = await API.billing.getSubscription()
         subscription.value = result.subscription
+        hasStripeCustomer.value = result.hasStripeCustomer || false
     } catch (error) {
         console.error('Failed to load subscription:', error)
         subscription.value = null
+        hasStripeCustomer.value = false
     }
 }
 
@@ -1531,6 +1534,16 @@ function getPlanPrice(plan) {
         : plan.price.yearly
 }
 
+// === Helper: Get original yearly price (12 × monthly) for strikethrough display ===
+function getOriginalYearlyPrice(plan) {
+    const monthlyRaw = plan?.price?.monthlyRaw
+    if (!monthlyRaw || monthlyRaw <= 0) return null
+
+    const originalYearly = monthlyRaw * 12
+    // Format as PLN
+    return `${originalYearly} zł`
+}
+
 // === Helper: Calculate trial days remaining (null-safe) ===
 function getTrialDaysRemaining() {
     if (!subscription.value?.trialEnd) return null
@@ -1651,6 +1664,13 @@ onMounted(async () => {
         // Authentication successful
         isAuthenticated.value = true
         isAuthChecking.value = false
+
+        // Remove initial HTML loader now that auth is confirmed
+        const initialLoader = document.getElementById('initial-loader')
+        if (initialLoader) {
+            initialLoader.classList.add('fade-out')
+            setTimeout(() => initialLoader.remove(), 300)
+        }
 
     } catch (error) {
         console.error('Auth check failed:', error)
@@ -2744,7 +2764,9 @@ onBeforeUnmount(() => {
 
                             <!-- Action Buttons -->
                             <div class="pt-4 flex flex-wrap gap-3">
+                                <!-- Przycisk portalu - tylko gdy ma konto Stripe (dokonał płatności) -->
                                 <button
+                                    v-if="hasStripeCustomer"
                                     @click="openBillingPortal"
                                     :disabled="portalLoading || isAnyBillingLoading()"
                                     class="bg-gray-100 text-gray-700 px-6 py-3 rounded-lg hover:bg-gray-200 transition-colors font-medium flex items-center gap-2 disabled:opacity-50"
@@ -2829,6 +2851,10 @@ onBeforeUnmount(() => {
                              :class="plan.id === subscription?.planId ? 'border-blue-500' : 'border-gray-200'">
                             <div v-if="plan.id === subscription?.planId" class="text-xs text-blue-600 font-medium mb-2">AKTUALNY PLAN</div>
                             <h3 class="text-lg font-bold mb-2">{{ plan.name }}</h3>
+                            <!-- Przekreślona cena oryginalna (przy rocznym) -->
+                            <div v-if="selectedInterval === 'yearly' && plan.price?.yearlyRaw > 0 && getSavingsPercent(plan)" class="mb-1">
+                                <span class="text-lg text-gray-400 line-through">{{ getOriginalYearlyPrice(plan) }}</span>
+                            </div>
                             <div class="text-3xl font-bold mb-1" :class="plan.price?.monthlyRaw === 0 ? 'text-gray-600' : 'text-blue-600'">
                                 {{ getPlanPrice(plan) }}
                                 <span v-if="plan.price?.monthlyRaw > 0" class="text-sm text-gray-600">/{{ selectedInterval === 'monthly' ? 'mies' : 'rok' }}</span>
