@@ -1,94 +1,142 @@
 <template>
-  <div class="export-wizard">
-    <!-- Progress steps -->
-    <div class="wizard-progress">
-      <div
-        v-for="(step, index) in steps"
-        :key="index"
-        class="step"
-        :class="{
-          active: currentStep === index,
-          completed: currentStep > index
-        }"
-      >
-        <div class="step-number">
-          <span v-if="currentStep > index">✓</span>
-          <span v-else>{{ index + 1 }}</span>
+  <div class="max-w-4xl mx-auto">
+    <!-- Header with progress -->
+    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6">
+      <div class="flex items-center justify-between mb-6">
+        <div>
+          <h1 class="text-2xl font-bold text-gray-900">
+            {{ props.exportId ? 'Edytuj eksport' : 'Nowy eksport' }}
+          </h1>
+          <p class="text-gray-500 mt-1">{{ steps[currentStep].description }}</p>
         </div>
-        <span class="step-label">{{ step.label }}</span>
+        <span class="text-sm text-gray-400">Krok {{ currentStep + 1 }} z {{ steps.length }}</span>
+      </div>
+
+      <!-- Progress bar -->
+      <div class="flex items-center gap-2">
+        <template v-for="(step, index) in steps" :key="index">
+          <div
+            class="flex items-center gap-2 cursor-pointer"
+            @click="goToStep(index)"
+          >
+            <div
+              class="w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium transition-all"
+              :class="{
+                'bg-blue-600 text-white': currentStep === index,
+                'bg-green-500 text-white': currentStep > index,
+                'bg-gray-100 text-gray-500': currentStep < index
+              }"
+            >
+              <svg v-if="currentStep > index" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+              </svg>
+              <span v-else>{{ index + 1 }}</span>
+            </div>
+            <span
+              class="text-sm font-medium hidden sm:inline"
+              :class="{
+                'text-blue-600': currentStep === index,
+                'text-green-600': currentStep > index,
+                'text-gray-400': currentStep < index
+              }"
+            >{{ step.label }}</span>
+          </div>
+          <div
+            v-if="index < steps.length - 1"
+            class="flex-1 h-0.5 mx-2"
+            :class="currentStep > index ? 'bg-green-500' : 'bg-gray-200'"
+          />
+        </template>
       </div>
     </div>
 
     <!-- Step content -->
-    <div class="wizard-content">
-      <!-- Step 1: Dataset & Fields -->
-      <div v-if="currentStep === 0" class="step-content">
-        <h2>Wybierz dane i pola</h2>
-        <p class="step-description">Wybierz źródło danych oraz pola, które chcesz eksportować.</p>
+    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6">
+      <!-- Loading state -->
+      <div v-if="isLoading" class="flex items-center justify-center py-12">
+        <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+        <span class="ml-3 text-gray-500">Wczytywanie...</span>
+      </div>
 
-        <!-- Dataset selector -->
-        <div class="dataset-selector">
-          <div
+      <!-- Step 1: Dataset & Fields -->
+      <div v-else-if="currentStep === 0">
+        <h2 class="text-lg font-semibold text-gray-900 mb-4">Wybierz dane do eksportu</h2>
+
+        <!-- Dataset cards -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-6">
+          <button
             v-for="dataset in availableDatasets"
             :key="dataset.key"
-            class="dataset-option"
+            type="button"
+            class="flex items-start gap-4 p-4 rounded-xl border-2 text-left transition-all"
             :class="{
-              selected: config.dataset === dataset.key,
-              locked: !dataset.available
+              'border-blue-500 bg-blue-50': config.dataset === dataset.key,
+              'border-gray-200 hover:border-blue-300 bg-white': config.dataset !== dataset.key && dataset.available,
+              'border-gray-200 bg-gray-50 opacity-60 cursor-not-allowed': !dataset.available
             }"
+            :disabled="!dataset.available"
             @click="selectDataset(dataset)"
           >
-            <div class="dataset-icon">{{ dataset.icon }}</div>
-            <div class="dataset-info">
-              <strong>{{ dataset.label }}</strong>
-              <span class="dataset-desc">{{ dataset.description }}</span>
+            <div class="text-3xl">{{ dataset.icon }}</div>
+            <div class="flex-1">
+              <div class="font-semibold text-gray-900">{{ dataset.label }}</div>
+              <div class="text-sm text-gray-500 mt-0.5">{{ dataset.description }}</div>
             </div>
-            <span v-if="!dataset.available" class="dataset-lock">
-              🔒 {{ dataset.requiredPlan.toUpperCase() }}
+            <span
+              v-if="!dataset.available"
+              class="text-xs px-2 py-1 bg-amber-100 text-amber-700 rounded-full font-medium"
+            >
+              {{ dataset.requiredPlan.toUpperCase() }}
             </span>
-          </div>
+          </button>
         </div>
 
-        <!-- Field selector -->
-        <div v-if="config.dataset" class="fields-section">
-          <h3>Wybierz pola do eksportu</h3>
+        <!-- Fields selection -->
+        <div v-if="config.dataset">
+          <div class="flex items-center justify-between mb-3">
+            <h3 class="text-base font-medium text-gray-900">Wybierz pola</h3>
+            <span class="text-sm text-gray-500">
+              {{ config.selected_fields.length }} wybrano
+            </span>
+          </div>
+
           <FieldSelector
             v-model="config.selected_fields"
             :fields="currentDatasetFields"
             :locked-fields="currentDatasetLockedFields"
           />
-        </div>
-      </div>
 
-      <!-- Step 2: Field Order -->
-      <div v-if="currentStep === 1" class="step-content">
-        <h2>Kolejność pól</h2>
-        <p class="step-description">Przeciągnij pola, aby ustalić kolejność kolumn w arkuszu.</p>
-
-        <div class="field-order-preview">
-          <h4>Nagłówki kolumn:</h4>
-          <div class="headers-preview">
-            <span
-              v-for="(fieldKey, index) in config.selected_fields"
-              :key="fieldKey"
-              class="header-cell"
-            >
-              {{ getFieldLabel(fieldKey) }}
-            </span>
+          <!-- Selected fields preview with drag -->
+          <div v-if="config.selected_fields.length > 0" class="mt-6">
+            <h4 class="text-sm font-medium text-gray-700 mb-2">
+              Kolejność kolumn (przeciągnij aby zmienić)
+            </h4>
+            <div class="flex flex-wrap gap-2 p-4 bg-gray-50 rounded-lg border border-gray-200">
+              <div
+                v-for="(fieldKey, index) in config.selected_fields"
+                :key="fieldKey"
+                class="flex items-center gap-1 px-3 py-1.5 bg-white border border-gray-200 rounded-lg text-sm cursor-move hover:border-blue-400 hover:bg-blue-50 transition-colors"
+                draggable="true"
+                @dragstart="dragStart(index)"
+                @dragover.prevent
+                @drop="drop(index)"
+              >
+                <svg class="w-3 h-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8h16M4 16h16"/>
+                </svg>
+                <span>{{ getFieldLabel(fieldKey) }}</span>
+              </div>
+            </div>
           </div>
         </div>
-
-        <FieldSelector
-          v-model="config.selected_fields"
-          :fields="currentDatasetFields"
-          :locked-fields="[]"
-        />
       </div>
 
-      <!-- Step 3: Filters -->
-      <div v-if="currentStep === 2" class="step-content">
-        <h2>Filtry</h2>
-        <p class="step-description">Ustaw warunki filtrowania danych. Możesz łączyć wiele warunków za pomocą ORAZ/LUB.</p>
+      <!-- Step 2: Filters -->
+      <div v-else-if="currentStep === 1">
+        <h2 class="text-lg font-semibold text-gray-900 mb-2">Filtrowanie danych</h2>
+        <p class="text-sm text-gray-500 mb-6">
+          Opcjonalne - ustaw warunki, aby eksportować tylko wybrane dane.
+        </p>
 
         <FilterBuilder
           v-model="config.filters"
@@ -99,10 +147,12 @@
         />
       </div>
 
-      <!-- Step 4: Target Sheets -->
-      <div v-if="currentStep === 3" class="step-content">
-        <h2>Arkusze docelowe</h2>
-        <p class="step-description">Skonfiguruj arkusze Google Sheets, do których będą eksportowane dane.</p>
+      <!-- Step 3: Target Sheets -->
+      <div v-else-if="currentStep === 2">
+        <h2 class="text-lg font-semibold text-gray-900 mb-2">Arkusze Google Sheets</h2>
+        <p class="text-sm text-gray-500 mb-6">
+          Podaj link do arkusza Google Sheets, do którego mają trafiać dane.
+        </p>
 
         <SheetConfig
           v-model="config.sheets_config"
@@ -111,103 +161,114 @@
         />
       </div>
 
-      <!-- Step 5: Schedule & Summary -->
-      <div v-if="currentStep === 4" class="step-content">
-        <h2>Harmonogram i podsumowanie</h2>
-        <p class="step-description">Nazwij eksport, ustaw harmonogram i sprawdź podsumowanie.</p>
+      <!-- Step 4: Summary -->
+      <div v-else-if="currentStep === 3">
+        <h2 class="text-lg font-semibold text-gray-900 mb-6">Podsumowanie</h2>
 
         <!-- Export name -->
-        <div class="form-group">
-          <label>Nazwa eksportu</label>
+        <div class="mb-6">
+          <label class="block text-sm font-medium text-gray-700 mb-2">
+            Nazwa eksportu
+          </label>
           <input
             v-model="config.name"
             type="text"
             placeholder="np. Zamówienia dzienne"
-            class="name-input"
+            class="w-full px-4 py-3 border border-gray-200 rounded-lg focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-colors"
           />
         </div>
 
         <!-- Schedule -->
-        <div class="form-group">
-          <label>Częstotliwość eksportu</label>
-          <div class="schedule-options">
-            <label
+        <div class="mb-6">
+          <label class="block text-sm font-medium text-gray-700 mb-2">
+            Częstotliwość aktualizacji
+          </label>
+          <div class="grid grid-cols-2 sm:grid-cols-5 gap-2">
+            <button
               v-for="option in scheduleOptions"
               :key="option.value"
-              class="schedule-option"
-              :class="{ selected: config.schedule_minutes === option.value }"
+              type="button"
+              class="px-4 py-2.5 rounded-lg border text-sm font-medium transition-all"
+              :class="{
+                'border-blue-500 bg-blue-50 text-blue-700': config.schedule_minutes === option.value,
+                'border-gray-200 bg-white text-gray-700 hover:border-blue-300': config.schedule_minutes !== option.value
+              }"
+              @click="config.schedule_minutes = option.value"
             >
-              <input
-                type="radio"
-                v-model="config.schedule_minutes"
-                :value="option.value"
-              />
-              <span>{{ option.label }}</span>
-            </label>
+              {{ option.label }}
+            </button>
           </div>
         </div>
 
-        <!-- Summary -->
-        <div class="summary-section">
-          <h3>Podsumowanie konfiguracji</h3>
-          <div class="summary-grid">
-            <div class="summary-item">
-              <span class="summary-label">Źródło danych:</span>
-              <span class="summary-value">{{ getDatasetLabel(config.dataset) }}</span>
+        <!-- Summary card -->
+        <div class="bg-gray-50 rounded-xl p-6 border border-gray-200">
+          <h3 class="text-sm font-semibold text-gray-900 uppercase tracking-wide mb-4">
+            Przegląd konfiguracji
+          </h3>
+          <div class="grid grid-cols-2 gap-4">
+            <div class="flex justify-between py-2 border-b border-gray-200">
+              <span class="text-gray-600">Dane:</span>
+              <span class="font-medium text-gray-900">{{ getDatasetLabel(config.dataset) }}</span>
             </div>
-            <div class="summary-item">
-              <span class="summary-label">Liczba pól:</span>
-              <span class="summary-value">{{ config.selected_fields.length }}</span>
+            <div class="flex justify-between py-2 border-b border-gray-200">
+              <span class="text-gray-600">Pola:</span>
+              <span class="font-medium text-gray-900">{{ config.selected_fields.length }}</span>
             </div>
-            <div class="summary-item">
-              <span class="summary-label">Filtry:</span>
-              <span class="summary-value">{{ getFilterSummary() }}</span>
+            <div class="flex justify-between py-2 border-b border-gray-200">
+              <span class="text-gray-600">Filtry:</span>
+              <span class="font-medium text-gray-900">{{ getFilterSummary() }}</span>
             </div>
-            <div class="summary-item">
-              <span class="summary-label">Arkusze docelowe:</span>
-              <span class="summary-value">{{ config.sheets_config?.length || 1 }}</span>
-            </div>
-            <div class="summary-item">
-              <span class="summary-label">Harmonogram:</span>
-              <span class="summary-value">{{ getScheduleLabel(config.schedule_minutes) }}</span>
+            <div class="flex justify-between py-2 border-b border-gray-200">
+              <span class="text-gray-600">Arkusze:</span>
+              <span class="font-medium text-gray-900">{{ config.sheets_config?.length || 1 }}</span>
             </div>
           </div>
         </div>
       </div>
     </div>
 
-    <!-- Navigation buttons -->
-    <div class="wizard-navigation">
+    <!-- Navigation -->
+    <div class="flex items-center justify-between">
       <button
-        class="btn-cancel"
+        type="button"
+        class="px-5 py-2.5 text-red-600 hover:text-red-700 font-medium transition-colors"
         @click="cancelWizard"
       >
         Anuluj
       </button>
-      <button
-        v-if="currentStep > 0"
-        class="btn-secondary"
-        @click="prevStep"
-      >
-        ← Wstecz
-      </button>
-      <div class="nav-spacer"></div>
-      <button
-        v-if="currentStep < steps.length - 1"
-        class="btn-primary"
-        :disabled="!canProceed"
-        @click="nextStep"
-      >
-        Dalej →
-      </button>
-      <button
-        v-else
-        class="btn-success"
-        :disabled="!canSave || isSaving"
-        @click="saveExport"
-      >
-        {{ isSaving ? 'Zapisuję...' : 'Zapisz eksport' }}
-      </button>
+
+      <div class="flex items-center gap-3">
+        <button
+          v-if="currentStep > 0"
+          type="button"
+          class="px-5 py-2.5 bg-white border border-gray-200 text-gray-700 rounded-lg font-medium hover:bg-gray-50 transition-colors"
+          @click="prevStep"
+        >
+          Wstecz
+        </button>
+        <button
+          v-if="currentStep < steps.length - 1"
+          type="button"
+          class="px-6 py-2.5 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 disabled:bg-blue-300 disabled:cursor-not-allowed transition-colors"
+          :disabled="!canProceed"
+          @click="nextStep"
+        >
+          Dalej
+        </button>
+        <button
+          v-else
+          type="button"
+          class="px-6 py-2.5 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 disabled:bg-green-300 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
+          :disabled="!canSave || isSaving"
+          @click="saveExport"
+        >
+          <svg v-if="isSaving" class="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/>
+          </svg>
+          {{ isSaving ? 'Zapisuję...' : 'Zapisz eksport' }}
+        </button>
+      </div>
     </div>
   </div>
 </template>
@@ -232,6 +293,7 @@ const emit = defineEmits(['save', 'cancel'])
 const currentStep = ref(0)
 const isSaving = ref(false)
 const isLoading = ref(true)
+const draggedIndex = ref(null)
 
 // Field definitions from backend
 const fieldDefinitions = ref({
@@ -262,21 +324,20 @@ const config = ref({
   status: 'active'
 })
 
-// Constants
+// Steps definition (4 steps now)
 const steps = [
-  { label: 'Dane i pola' },
-  { label: 'Kolejność' },
-  { label: 'Filtry' },
-  { label: 'Arkusze' },
-  { label: 'Podsumowanie' }
+  { label: 'Dane', description: 'Wybierz dane i pola do eksportu' },
+  { label: 'Filtry', description: 'Ustaw warunki filtrowania (opcjonalne)' },
+  { label: 'Arkusz', description: 'Skonfiguruj arkusz Google Sheets' },
+  { label: 'Zapisz', description: 'Nazwij eksport i zapisz' }
 ]
 
 const scheduleOptions = [
-  { value: 15, label: 'Co 15 minut' },
-  { value: 30, label: 'Co 30 minut' },
-  { value: 60, label: 'Co godzinę' },
-  { value: 360, label: 'Co 6 godzin' },
-  { value: 1440, label: 'Raz dziennie' }
+  { value: 15, label: '15 min' },
+  { value: 30, label: '30 min' },
+  { value: 60, label: '1 godz' },
+  { value: 360, label: '6 godz' },
+  { value: 1440, label: '24 godz' }
 ]
 
 const datasetIcons = {
@@ -287,10 +348,10 @@ const datasetIcons = {
 }
 
 const datasetDescriptions = {
-  orders: 'Eksportuj dane zamówień z BaseLinker',
+  orders: 'Eksportuj dane zamówień',
   products: 'Eksportuj produkty z magazynu',
-  invoices: 'Eksportuj faktury z BaseLinker',
-  order_products: 'Eksportuj produkty z zamówień (jeden wiersz = jeden produkt)'
+  invoices: 'Eksportuj faktury',
+  order_products: 'Produkty z zamówień (wiersz = produkt)'
 }
 
 const serviceAccountEmail = 'live-sales@live-sales-app.iam.gserviceaccount.com'
@@ -298,65 +359,49 @@ const maxSheets = 3
 
 // Computed
 const availableDatasets = computed(() => {
-  const datasets = []
-  for (const [key, dataset] of Object.entries(fieldDefinitions.value.datasets || {})) {
-    datasets.push({
-      key,
-      label: dataset.label,
-      available: dataset.available,
-      requiredPlan: dataset.requiredPlan,
-      icon: datasetIcons[key] || '📊',
-      description: datasetDescriptions[key] || ''
-    })
-  }
-  return datasets
+  const datasets = fieldDefinitions.value?.datasets || {}
+  return Object.entries(datasets).map(([key, ds]) => ({
+    key,
+    label: ds.label,
+    available: !ds.locked,
+    requiredPlan: ds.requiredPlan || 'basic',
+    icon: datasetIcons[key] || '📊',
+    description: datasetDescriptions[key] || ds.description || ''
+  }))
 })
 
 const currentDatasetFields = computed(() => {
-  const dataset = fieldDefinitions.value.datasets?.[config.value.dataset]
-  return dataset?.fields || []
+  const ds = fieldDefinitions.value?.datasets?.[config.value.dataset]
+  return ds?.fields || []
 })
 
 const currentDatasetLockedFields = computed(() => {
-  const dataset = fieldDefinitions.value.datasets?.[config.value.dataset]
-  return dataset?.lockedFields || []
+  return currentDatasetFields.value.filter(f => f.locked).map(f => f.key)
 })
 
 const canProceed = computed(() => {
   switch (currentStep.value) {
     case 0: // Dataset & Fields
       return config.value.dataset && config.value.selected_fields.length > 0
-    case 1: // Field Order
-      return config.value.selected_fields.length > 0
-    case 2: // Filters
-      return true // Filters are optional
-    case 3: // Sheets
-      return config.value.sheets_config?.every(s => s.sheet_url && s.urlStatus === 'valid')
-    case 4: // Summary
-      return config.value.name.trim().length > 0
+    case 1: // Filters (always can proceed)
+      return true
+    case 2: // Sheets
+      const sheets = config.value.sheets_config || []
+      return sheets.length > 0 && sheets.every(s => s.sheet_url && s.sheet_url.includes('docs.google.com'))
     default:
       return true
   }
 })
 
 const canSave = computed(() => {
-  return config.value.name.trim().length > 0 &&
-         config.value.dataset &&
-         config.value.selected_fields.length > 0 &&
-         config.value.sheets_config?.length > 0 &&
-         config.value.sheets_config.every(s => s.sheet_url)
+  return config.value.name && config.value.name.trim() !== '' && canProceed.value
 })
 
 // Methods
 function selectDataset(dataset) {
   if (!dataset.available) return
-
   config.value.dataset = dataset.key
   config.value.selected_fields = []
-  config.value.filters = {
-    logic: 'AND',
-    groups: [{ logic: 'AND', conditions: [{ field: '', operator: '', value: '' }] }]
-  }
 }
 
 function getFieldLabel(fieldKey) {
@@ -365,22 +410,43 @@ function getFieldLabel(fieldKey) {
 }
 
 function getDatasetLabel(datasetKey) {
-  const dataset = availableDatasets.value.find(d => d.key === datasetKey)
-  return dataset?.label || datasetKey
+  const ds = fieldDefinitions.value?.datasets?.[datasetKey]
+  return ds?.label || datasetKey
 }
 
 function getFilterSummary() {
   const groups = config.value.filters?.groups || []
-  const conditions = groups.reduce((sum, g) => sum + (g.conditions?.length || 0), 0)
-  if (conditions === 0 || (conditions === 1 && !groups[0]?.conditions?.[0]?.field)) {
-    return 'Brak filtrów'
-  }
-  return `${conditions} warunków w ${groups.length} grupach`
+  const validConditions = groups.flatMap(g => g.conditions || [])
+    .filter(c => c.field && c.operator)
+  return validConditions.length > 0 ? `${validConditions.length} warunek(ów)` : 'Brak'
 }
 
 function getScheduleLabel(minutes) {
   const option = scheduleOptions.find(o => o.value === minutes)
-  return option?.label || `Co ${minutes} minut`
+  return option?.label || `${minutes} min`
+}
+
+// Drag & Drop for field ordering
+function dragStart(index) {
+  draggedIndex.value = index
+}
+
+function drop(targetIndex) {
+  if (draggedIndex.value === null || draggedIndex.value === targetIndex) return
+
+  const fields = [...config.value.selected_fields]
+  const [removed] = fields.splice(draggedIndex.value, 1)
+  fields.splice(targetIndex, 0, removed)
+  config.value.selected_fields = fields
+  draggedIndex.value = null
+}
+
+// Navigation
+function goToStep(index) {
+  // Only allow going to completed steps or current+1
+  if (index <= currentStep.value || (index === currentStep.value + 1 && canProceed.value)) {
+    currentStep.value = index
+  }
 }
 
 function nextStep() {
@@ -404,7 +470,6 @@ async function saveExport() {
 
   isSaving.value = true
   try {
-    // Format config for API
     const exportData = {
       id: config.value.id,
       name: config.value.name,
@@ -426,7 +491,7 @@ async function saveExport() {
   }
 }
 
-// Load field definitions from backend
+// Load data
 async function loadFieldDefinitions() {
   try {
     const data = await API.exports.getFieldDefinitions()
@@ -438,7 +503,6 @@ async function loadFieldDefinitions() {
   }
 }
 
-// Load order statuses
 async function loadOrderStatuses() {
   try {
     const data = await API.baselinker.getOrderStatuses()
@@ -450,7 +514,6 @@ async function loadOrderStatuses() {
   }
 }
 
-// Load order sources
 async function loadOrderSources() {
   try {
     const data = await API.baselinker.getOrderSources()
@@ -462,7 +525,6 @@ async function loadOrderSources() {
   }
 }
 
-// Load existing export for editing
 async function loadExportForEditing(exportId) {
   try {
     const exportData = await API.exports.get(exportId)
@@ -498,7 +560,6 @@ onMounted(async () => {
     loadOrderSources()
   ])
 
-  // If editing existing export, load its config
   if (props.exportId) {
     await loadExportForEditing(props.exportId)
   }
@@ -506,366 +567,3 @@ onMounted(async () => {
   isLoading.value = false
 })
 </script>
-
-<style scoped>
-.export-wizard {
-  display: flex;
-  flex-direction: column;
-  gap: 2rem;
-  max-width: 900px;
-  margin: 0 auto;
-}
-
-/* Progress Steps */
-.wizard-progress {
-  display: flex;
-  justify-content: space-between;
-  padding: 0 1rem;
-}
-
-.step {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.5rem;
-  flex: 1;
-  position: relative;
-}
-
-.step:not(:last-child)::after {
-  content: '';
-  position: absolute;
-  top: 15px;
-  left: calc(50% + 20px);
-  width: calc(100% - 40px);
-  height: 2px;
-  background: #e5e7eb;
-}
-
-.step.completed:not(:last-child)::after {
-  background: #6366f1;
-}
-
-.step-number {
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  background: #e5e7eb;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 0.9rem;
-  font-weight: 600;
-  color: #6b7280;
-  position: relative;
-  z-index: 1;
-}
-
-.step.active .step-number {
-  background: #6366f1;
-  color: white;
-}
-
-.step.completed .step-number {
-  background: #10b981;
-  color: white;
-}
-
-.step-label {
-  font-size: 0.8rem;
-  color: #6b7280;
-  text-align: center;
-}
-
-.step.active .step-label {
-  color: #374151;
-  font-weight: 500;
-}
-
-/* Content */
-.wizard-content {
-  background: white;
-  border-radius: 16px;
-  padding: 2rem;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-}
-
-.step-content h2 {
-  margin: 0 0 0.5rem 0;
-  font-size: 1.5rem;
-  color: #111827;
-}
-
-.step-description {
-  color: #6b7280;
-  margin: 0 0 1.5rem 0;
-}
-
-/* Dataset Selector */
-.dataset-selector {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 1rem;
-  margin-bottom: 2rem;
-}
-
-.dataset-option {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  padding: 1rem 1.25rem;
-  background: #f9fafb;
-  border: 2px solid #e5e7eb;
-  border-radius: 12px;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.dataset-option:hover {
-  border-color: #6366f1;
-}
-
-.dataset-option.selected {
-  background: #eef2ff;
-  border-color: #6366f1;
-}
-
-.dataset-option.locked {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-
-.dataset-icon {
-  font-size: 2rem;
-}
-
-.dataset-info {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-}
-
-.dataset-info strong {
-  font-size: 1rem;
-}
-
-.dataset-desc {
-  font-size: 0.8rem;
-  color: #6b7280;
-}
-
-.dataset-lock {
-  font-size: 0.75rem;
-  padding: 0.25rem 0.5rem;
-  background: #fef3c7;
-  color: #92400e;
-  border-radius: 4px;
-}
-
-/* Fields section */
-.fields-section h3 {
-  margin: 0 0 1rem 0;
-  font-size: 1.1rem;
-  color: #374151;
-}
-
-/* Field order preview */
-.field-order-preview {
-  margin-bottom: 1.5rem;
-}
-
-.field-order-preview h4 {
-  margin: 0 0 0.75rem 0;
-  font-size: 0.9rem;
-  color: #6b7280;
-}
-
-.headers-preview {
-  display: flex;
-  gap: 0.5rem;
-  flex-wrap: wrap;
-  padding: 1rem;
-  background: #f3f4f6;
-  border-radius: 8px;
-}
-
-.header-cell {
-  padding: 0.375rem 0.75rem;
-  background: white;
-  border-radius: 4px;
-  font-size: 0.85rem;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
-}
-
-/* Form groups */
-.form-group {
-  margin-bottom: 1.5rem;
-}
-
-.form-group label {
-  display: block;
-  font-size: 0.9rem;
-  font-weight: 500;
-  color: #374151;
-  margin-bottom: 0.5rem;
-}
-
-.name-input {
-  width: 100%;
-  padding: 0.75rem 1rem;
-  border: 1px solid #e5e7eb;
-  border-radius: 8px;
-  font-size: 1rem;
-}
-
-.name-input:focus {
-  outline: none;
-  border-color: #6366f1;
-  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
-}
-
-/* Schedule options */
-.schedule-options {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.75rem;
-}
-
-.schedule-option {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.625rem 1rem;
-  background: #f3f4f6;
-  border: 1px solid #e5e7eb;
-  border-radius: 8px;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.schedule-option:hover {
-  border-color: #6366f1;
-}
-
-.schedule-option.selected {
-  background: #eef2ff;
-  border-color: #6366f1;
-}
-
-.schedule-option input {
-  display: none;
-}
-
-/* Summary */
-.summary-section {
-  margin-top: 2rem;
-  padding-top: 1.5rem;
-  border-top: 1px solid #e5e7eb;
-}
-
-.summary-section h3 {
-  margin: 0 0 1rem 0;
-  font-size: 1.1rem;
-  color: #374151;
-}
-
-.summary-grid {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 1rem;
-}
-
-.summary-item {
-  display: flex;
-  justify-content: space-between;
-  padding: 0.75rem 1rem;
-  background: #f9fafb;
-  border-radius: 8px;
-}
-
-.summary-label {
-  color: #6b7280;
-  font-size: 0.9rem;
-}
-
-.summary-value {
-  font-weight: 500;
-  color: #374151;
-}
-
-/* Navigation */
-.wizard-navigation {
-  display: flex;
-  align-items: center;
-  padding-top: 1rem;
-  border-top: 1px solid #e5e7eb;
-}
-
-.nav-spacer {
-  flex: 1;
-}
-
-.btn-primary,
-.btn-secondary,
-.btn-success,
-.btn-cancel {
-  padding: 0.75rem 1.5rem;
-  border-radius: 8px;
-  font-size: 0.95rem;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.btn-cancel {
-  background: white;
-  color: #ef4444;
-  border: 1px solid #fecaca;
-}
-
-.btn-cancel:hover {
-  background: #fef2f2;
-  border-color: #ef4444;
-}
-
-.btn-primary {
-  background: #6366f1;
-  color: white;
-  border: none;
-}
-
-.btn-primary:hover:not(:disabled) {
-  background: #4f46e5;
-}
-
-.btn-primary:disabled {
-  background: #c7d2fe;
-  cursor: not-allowed;
-}
-
-.btn-secondary {
-  background: white;
-  color: #374151;
-  border: 1px solid #e5e7eb;
-}
-
-.btn-secondary:hover {
-  background: #f3f4f6;
-}
-
-.btn-success {
-  background: #10b981;
-  color: white;
-  border: none;
-}
-
-.btn-success:hover:not(:disabled) {
-  background: #059669;
-}
-
-.btn-success:disabled {
-  background: #6ee7b7;
-  cursor: not-allowed;
-}
-</style>
