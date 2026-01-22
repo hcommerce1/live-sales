@@ -266,6 +266,162 @@ class BaseLinkerClient {
     });
     return response.products || {};
   }
+
+  /**
+   * Get order sources (shop, personal, marketplaces)
+   */
+  async getOrderSources() {
+    const response = await this.makeRequest('getOrderSources', {});
+    return response.sources || {};
+  }
+
+  /**
+   * Get invoices with optional filters
+   */
+  async getInvoices(filters = {}) {
+    const parameters = {
+      invoice_id: filters.invoice_id || undefined,
+      order_id: filters.order_id || undefined,
+      date_from: filters.date_from
+        ? Math.floor(new Date(filters.date_from).getTime() / 1000)
+        : undefined,
+      id_from: filters.id_from || undefined,
+      series_id: filters.series_id || undefined,
+      get_external_invoices: filters.get_external_invoices !== undefined
+        ? filters.get_external_invoices
+        : true,
+    };
+
+    // Remove undefined values
+    Object.keys(parameters).forEach((key) => {
+      if (parameters[key] === undefined) {
+        delete parameters[key];
+      }
+    });
+
+    const response = await this.makeRequest('getInvoices', parameters);
+    return response.invoices || [];
+  }
+
+  /**
+   * Get invoice PDF file
+   */
+  async getInvoiceFile(invoiceId, getExternal = false) {
+    const response = await this.makeRequest('getInvoiceFile', {
+      invoice_id: invoiceId,
+      get_external: getExternal,
+    });
+    return {
+      invoice: response.invoice || null,
+      invoice_number: response.invoice_number || null,
+    };
+  }
+
+  /**
+   * Get orders with pagination (fetches all in batches of 100)
+   * @param {object} filters - Order filters
+   * @param {number} maxRecords - Maximum records to fetch
+   */
+  async getOrdersWithPagination(filters = {}, maxRecords = 10000) {
+    const BATCH_SIZE = 100;
+    let allOrders = [];
+    let lastDateConfirmed = filters.date_from
+      ? Math.floor(new Date(filters.date_from).getTime() / 1000)
+      : 0;
+    let hasMore = true;
+
+    while (hasMore && allOrders.length < maxRecords) {
+      const parameters = {
+        date_confirmed_from: lastDateConfirmed,
+        date_confirmed_to: filters.date_to
+          ? Math.floor(new Date(filters.date_to).getTime() / 1000)
+          : undefined,
+        order_status_id: filters.status || undefined,
+        get_unconfirmed_orders: filters.get_unconfirmed || false,
+        filter_order_source: filters.order_source || undefined,
+        filter_order_source_id: filters.order_source_id || undefined,
+      };
+
+      // Remove undefined values
+      Object.keys(parameters).forEach((key) => {
+        if (parameters[key] === undefined) {
+          delete parameters[key];
+        }
+      });
+
+      const response = await this.makeRequest('getOrders', parameters);
+      const batch = response.orders || [];
+
+      if (batch.length === 0) {
+        hasMore = false;
+      } else {
+        allOrders = allOrders.concat(batch);
+        const lastOrder = batch[batch.length - 1];
+        lastDateConfirmed = lastOrder.date_confirmed + 1;
+        hasMore = batch.length === BATCH_SIZE;
+      }
+    }
+
+    logger.info('Fetched orders with pagination', {
+      companyId: this.companyId,
+      count: allOrders.length,
+      batchCount: Math.ceil(allOrders.length / BATCH_SIZE),
+    });
+
+    return allOrders;
+  }
+
+  /**
+   * Get invoices with pagination (fetches all in batches of 100)
+   * @param {object} filters - Invoice filters
+   * @param {number} maxRecords - Maximum records to fetch
+   */
+  async getInvoicesWithPagination(filters = {}, maxRecords = 10000) {
+    const BATCH_SIZE = 100;
+    let allInvoices = [];
+    let lastId = filters.id_from || 0;
+    let hasMore = true;
+
+    while (hasMore && allInvoices.length < maxRecords) {
+      const parameters = {
+        id_from: lastId,
+        date_from: filters.date_from
+          ? Math.floor(new Date(filters.date_from).getTime() / 1000)
+          : undefined,
+        series_id: filters.series_id || undefined,
+        get_external_invoices: filters.get_external_invoices !== undefined
+          ? filters.get_external_invoices
+          : true,
+      };
+
+      // Remove undefined values
+      Object.keys(parameters).forEach((key) => {
+        if (parameters[key] === undefined) {
+          delete parameters[key];
+        }
+      });
+
+      const response = await this.makeRequest('getInvoices', parameters);
+      const batch = response.invoices || [];
+
+      if (batch.length === 0) {
+        hasMore = false;
+      } else {
+        allInvoices = allInvoices.concat(batch);
+        const lastInvoice = batch[batch.length - 1];
+        lastId = lastInvoice.invoice_id + 1;
+        hasMore = batch.length === BATCH_SIZE;
+      }
+    }
+
+    logger.info('Fetched invoices with pagination', {
+      companyId: this.companyId,
+      count: allInvoices.length,
+      batchCount: Math.ceil(allInvoices.length / BATCH_SIZE),
+    });
+
+    return allInvoices;
+  }
 }
 
 /**

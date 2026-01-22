@@ -6,6 +6,9 @@ import Sortable from 'sortablejs'
 import Chart from 'chart.js/auto'
 import emailjs from '@emailjs/browser'
 
+// Export Wizard components
+import ExportWizard from './components/ExportWizard.vue'
+
 // Initialize EmailJS
 emailjs.init("AJZSalcoaqOoF-Qxe")
 
@@ -68,6 +71,9 @@ let uptimeChart = null
 // Server data
 const exportsListServer = ref([])
 const isLoading = ref(false)
+
+// === Export Wizard State ===
+const wizardEditingExportId = ref(null)  // null = new export, string = editing existing
 
 // Configuration page
 const baselinkerToken = ref('')
@@ -602,6 +608,13 @@ async function saveConfig() {
 }
 
 function createNewExport() {
+    // Open the new export wizard instead of old configurator
+    wizardEditingExportId.value = null
+    currentPage.value = 'wizard'
+}
+
+// Legacy function for old configurator (kept for backwards compatibility)
+function createNewExportLegacy() {
     const newId = 'export-' + Date.now()
     config.value = {
         id: newId,
@@ -624,6 +637,65 @@ function createNewExport() {
 
 function loadExport(exportId) {
     loadExportFromServer(exportId)
+}
+
+// === Export Wizard Handlers ===
+async function handleWizardSave(exportConfig) {
+    try {
+        isLoading.value = true
+
+        // Transform wizard config to API format
+        const apiConfig = {
+            id: wizardEditingExportId.value || ('export-' + Date.now()),
+            name: exportConfig.name,
+            dataset: exportConfig.dataset,
+            selected_fields: exportConfig.selectedFields,
+            filters: exportConfig.filters,
+            schedule_minutes: exportConfig.scheduleMinutes,
+            status: 'active',
+            // New: multiple sheets
+            sheets: exportConfig.sheets.map(sheet => ({
+                sheet_url: sheet.sheet_url,
+                sheet_name: sheet.sheet_name || null,
+                write_mode: sheet.write_mode
+            }))
+        }
+
+        // Save via API
+        await API.exports.save(apiConfig)
+        await loadExportsFromServer()
+
+        showToast(
+            'Zapisano',
+            'Eksport został zapisany pomyślnie',
+            '<svg class="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>'
+        )
+
+        // Return to exports list
+        currentPage.value = 'exports'
+        wizardEditingExportId.value = null
+    } catch (error) {
+        console.error('Failed to save export from wizard:', error)
+        showToast(
+            'Błąd',
+            'Nie udało się zapisać eksportu: ' + error.message,
+            '<svg class="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>'
+        )
+    } finally {
+        isLoading.value = false
+    }
+}
+
+function handleWizardCancel() {
+    // Return to exports list without saving
+    currentPage.value = 'exports'
+    wizardEditingExportId.value = null
+}
+
+function editExportInWizard(exportId) {
+    // Open wizard for editing existing export
+    wizardEditingExportId.value = exportId
+    currentPage.value = 'wizard'
 }
 
 function confirmDelete(exportId) {
@@ -2016,7 +2088,7 @@ onBeforeUnmount(() => {
                                 </td>
                                 <td class="px-4 md:px-6 py-4">
                                     <div class="flex items-center gap-2">
-                                        <button @click="loadExport(exp.id)" class="text-blue-600 hover:text-blue-800 text-sm font-medium flex items-center gap-1">
+                                        <button @click="editExportInWizard(exp.id)" class="text-blue-600 hover:text-blue-800 text-sm font-medium flex items-center gap-1">
                                             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path>
                                             </svg>
@@ -2920,7 +2992,16 @@ onBeforeUnmount(() => {
                 </div>
             </div>
 
-            <!-- KONFIGURATOR -->
+            <!-- EXPORT WIZARD (NEW) -->
+            <div v-if="currentPage === 'wizard'" class="p-4 md:p-8">
+                <ExportWizard
+                    :export-id="wizardEditingExportId"
+                    @save="handleWizardSave"
+                    @cancel="handleWizardCancel"
+                />
+            </div>
+
+            <!-- KONFIGURATOR (LEGACY) -->
             <div v-if="currentPage === 'konfigurator'" class="flex flex-col min-h-screen">
                 <!-- Top bar -->
                 <div class="bg-white border-b border-gray-200 px-4 md:px-6 py-4 sticky top-0 z-10 shadow-sm">

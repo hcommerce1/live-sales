@@ -269,10 +269,16 @@ model Export {
   createdBy       String?  // userId who created (when under company)
 
   name            String
-  dataset         String   // 'orders' or 'products'
+  dataset         String   // 'orders', 'products', 'invoices', 'order_products'
   status          String   @default("active") // active, paused, error
 
-  // Filters (stored as JSON)
+  // Filters - NEW structure with groups and operators
+  // {
+  //   logic: 'AND' | 'OR',
+  //   groups: [
+  //     { logic: 'AND' | 'OR', conditions: [{ field, operator, value }] }
+  //   ]
+  // }
   filters         Json?
 
   // Selected fields (array of field keys)
@@ -283,7 +289,7 @@ model Export {
   // When company.secrets.enabled=true, use CompanySecret instead
   baselinkerToken String
 
-  // Google Sheets configuration
+  // LEGACY: Single sheet configuration (kept for backward compatibility)
   sheetsUrl       String
   sheetsWriteMode String   @default("append") // append, replace
 
@@ -295,10 +301,67 @@ model Export {
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
+  // Relations - NEW
+  sheets          ExportSheet[]
+  runs            ExportRun[]
+
   @@map("exports")
   @@index([userId])
   @@index([companyId])
   @@index([status])
+}
+
+// Export Sheet - multiple target sheets per export
+model ExportSheet {
+  id              String   @id @default(uuid())
+  exportId        String
+  export          Export   @relation(fields: [exportId], references: [id], onDelete: Cascade)
+
+  sheetUrl        String
+  sheetName       String?  // Optional: specific tab name
+  writeMode       String   @default("append") // append, replace
+
+  // Order for multiple sheets
+  sortOrder       Int      @default(0)
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@map("export_sheets")
+  @@index([exportId])
+}
+
+// Export Run - history of export executions
+model ExportRun {
+  id              String   @id @default(uuid())
+  exportId        String
+  export          Export   @relation(fields: [exportId], references: [id], onDelete: Cascade)
+
+  runAt           DateTime @default(now())
+  status          String   // success, partial_failure, failure
+  totalRecords    Int
+  durationMs      Int?
+
+  // Results per sheet
+  sheetResults    Json?    // Array of { sheetUrl, success, recordsWritten, error, attempts }
+
+  // Error info
+  errorMessage    String?
+
+  // Detailed metadata for debugging and analytics
+  // {
+  //   triggeredBy: 'manual' | 'scheduler',
+  //   recordsBeforeFilter: number,
+  //   recordsAfterFilter: number,
+  //   phases: { fetchFromBaseLinker: ms, applyFilters: ms, writeToSheets: ms },
+  //   filtersApplied: { apiFilters: {}, appFilters: {} }
+  // }
+  metadata        Json?
+
+  @@map("export_runs")
+  @@index([exportId, runAt])
+  @@index([status])
+  @@index([runAt])
 }
 
 // Audit log for security tracking (enhanced in PR 0.5)

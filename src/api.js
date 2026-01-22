@@ -273,6 +273,18 @@ export const API = {
       const response = await API.request(`/api/exports/${id}/stats`);
       return response.data;
     },
+
+    // Get field definitions for export wizard (NEW)
+    async getFieldDefinitions() {
+      const response = await API.request('/api/exports/field-definitions');
+      return response.data;
+    },
+
+    // Get export run history (NEW)
+    async getRunHistory(id, limit = 10) {
+      const response = await API.request(`/api/exports/${id}/runs?limit=${limit}`);
+      return response.data || [];
+    },
   },
 
   /**
@@ -299,10 +311,29 @@ export const API = {
       return response.data || [];
     },
 
+    // Get order sources (NEW)
+    async getOrderSources() {
+      const response = await API.request('/api/baselinker/order-sources');
+      return response.data || {};
+    },
+
     // Get inventories
     async getInventories() {
       const response = await API.request('/api/baselinker/inventories');
       return response.data || [];
+    },
+
+    // Get invoices (NEW)
+    async getInvoices(filters = {}) {
+      const params = new URLSearchParams(filters);
+      const response = await API.request(`/api/baselinker/invoices?${params}`);
+      return response.data || [];
+    },
+
+    // Get invoice file (NEW)
+    async getInvoiceFile(invoiceId) {
+      const response = await API.request(`/api/baselinker/invoice/${invoiceId}/file`);
+      return response.data;
     },
   },
 

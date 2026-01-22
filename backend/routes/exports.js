@@ -13,51 +13,69 @@ const {
 } = require('../middleware/featureGate');
 const featureFlags = require('../utils/feature-flags');
 
-// Field definitions with higher_plan flag
-// TODO: Move to separate config file
-const FIELD_DEFINITIONS = {
-  // Basic fields (available to all)
-  'order_id': { higher_plan: false },
-  'date_add': { higher_plan: false },
-  'user_login': { higher_plan: false },
-  'email': { higher_plan: false },
-  'phone': { higher_plan: false },
-  'delivery_fullname': { higher_plan: false },
-  'delivery_address': { higher_plan: false },
-  'delivery_city': { higher_plan: false },
-  'delivery_postcode': { higher_plan: false },
-  'delivery_country': { higher_plan: false },
-  'payment_method': { higher_plan: false },
-  'delivery_method': { higher_plan: false },
-  'order_status': { higher_plan: false },
-  'currency': { higher_plan: false },
-  'payment_done': { higher_plan: false },
-  'order_source': { higher_plan: false },
-  'product_name': { higher_plan: false },
-  'product_sku': { higher_plan: false },
-  'product_ean': { higher_plan: false },
-  'quantity': { higher_plan: false },
-  'price_brutto': { higher_plan: false },
+// Export fields configuration (centralized in config file)
+const exportFields = require('../config/export-fields');
 
-  // PRO fields (require Pro plan)
-  'invoice_fullname': { higher_plan: true },
-  'invoice_company': { higher_plan: true },
-  'invoice_nip': { higher_plan: true },
-  'invoice_address': { higher_plan: true },
-  'invoice_city': { higher_plan: true },
-  'invoice_postcode': { higher_plan: true },
-  'invoice_country': { higher_plan: true },
-  'admin_comments': { higher_plan: true },
-  'user_comments': { higher_plan: true },
-  'extra_field_1': { higher_plan: true },
-  'extra_field_2': { higher_plan: true },
-  'delivery_price': { higher_plan: true },
-  'order_profit': { higher_plan: true },
-  'order_cost': { higher_plan: true },
-};
+// Legacy FIELD_DEFINITIONS for backward compatibility
+// New code should use exportFields.validateFieldsForPlan()
+const FIELD_DEFINITIONS = {};
+// Build from exportFields for backward compatibility
+for (const [datasetKey, dataset] of Object.entries(exportFields.datasets)) {
+  for (const field of dataset.fields) {
+    FIELD_DEFINITIONS[field.key] = {
+      higher_plan: field.plan === 'pro'
+    };
+  }
+}
 
 // Apply company context to all routes
 router.use(companyContextMiddleware);
+
+/**
+ * GET /api/exports/field-definitions
+ * Get field definitions for all datasets with plan-based filtering
+ *
+ * Returns operators, datasets with fields, and locked fields based on user's plan.
+ * Used by ExportWizard to show available fields and operators.
+ */
+router.get('/field-definitions', requireCompany, async (req, res) => {
+  try {
+    // Get user's plan from subscription
+    const { PrismaClient } = require('@prisma/client');
+    const prisma = new PrismaClient();
+
+    let userPlan = 'free';
+
+    if (req.company?.id) {
+      const subscription = await prisma.subscription.findUnique({
+        where: { companyId: req.company.id },
+        select: { planId: true, status: true }
+      });
+
+      // Only active/trialing subscriptions count
+      if (subscription && ['active', 'trialing'].includes(subscription.status)) {
+        userPlan = subscription.planId || 'free';
+      }
+    }
+
+    // Get full config based on plan
+    const config = exportFields.getFullConfig(userPlan);
+
+    res.json({
+      success: true,
+      data: {
+        currentPlan: userPlan,
+        ...config
+      }
+    });
+  } catch (error) {
+    logger.error('Failed to get field definitions', { error: error.message });
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
 
 /**
  * GET /api/exports

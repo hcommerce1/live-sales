@@ -135,3 +135,53 @@ Critical variables (see `.env.example` for full list):
 - `/api/billing` - Mixed: webhook public (signature verified), rest protected
 - `/api/features` - Auth inside routes
 - `/health` - Public health check
+
+## Git Commit Guidelines
+
+### Commit Message Format
+```
+<type>: <short description>
+
+<optional body with details>
+
+Co-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>
+```
+
+### Types
+- `feat` - New feature
+- `fix` - Bug fix
+- `refactor` - Code refactoring without behavior change
+- `docs` - Documentation only
+- `style` - Formatting, whitespace
+- `test` - Adding/updating tests
+- `chore` - Build, dependencies, config
+
+### Commit Workflow
+```bash
+# 1. Check status
+git status
+
+# 2. Check recent commits for style reference
+git log --oneline -5
+
+# 3. Stage and commit
+git add -A
+git commit -m "$(cat <<'EOF'
+fix: short description here
+
+Optional longer explanation of changes.
+
+Co-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>
+EOF
+)"
+
+# 4. Handle remote conflicts if needed
+git pull --rebase
+
+# 5. Push to GitHub
+git push
+```
+
+### Working Directory
+Main project path: `live-sales-v7/` (relative to repo root)
+Full path on dev machine: `c:\Users\huber\OneDrive\Pulpit\VS CODE\live-sales-v24\live-sales-v23\live-sales-v23\live-sales-v21\live-sales-v21\live-sales-v7`

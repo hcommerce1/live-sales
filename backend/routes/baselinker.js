@@ -306,6 +306,114 @@ router.get('/order-statuses', async (req, res) => {
 });
 
 /**
+ * GET /api/baselinker/order-sources
+ * Get available order sources (shop, personal, marketplaces)
+ */
+router.get('/order-sources', async (req, res) => {
+  try {
+    const client = await getBaseLinkerClient(req, res);
+    if (!client) return;
+
+    const sources = await client.getOrderSources();
+
+    res.json({
+      success: true,
+      data: sources,
+    });
+  } catch (error) {
+    logger.error('Failed to fetch order sources', {
+      error: error.message,
+      companyId: req.company?.id,
+    });
+    res.status(500).json({
+      success: false,
+      error: error.message,
+    });
+  }
+});
+
+/**
+ * GET /api/baselinker/invoices
+ * Get invoices from BaseLinker
+ */
+router.get('/invoices', featureFlagMiddleware('baselinker.invoices'), async (req, res) => {
+  try {
+    const client = await getBaseLinkerClient(req, res);
+    if (!client) return;
+
+    const filters = {
+      invoice_id: req.query.invoice_id ? parseInt(req.query.invoice_id, 10) : null,
+      order_id: req.query.order_id ? parseInt(req.query.order_id, 10) : null,
+      date_from: req.query.date_from,
+      id_from: req.query.id_from ? parseInt(req.query.id_from, 10) : null,
+      series_id: req.query.series_id ? parseInt(req.query.series_id, 10) : null,
+      get_external_invoices: req.query.get_external_invoices !== 'false',
+    };
+
+    const invoices = await client.getInvoices(filters);
+
+    res.json({
+      success: true,
+      count: invoices.length,
+      data: invoices,
+    });
+  } catch (error) {
+    logger.error('Failed to fetch invoices', {
+      error: error.message,
+      companyId: req.company?.id,
+    });
+    res.status(500).json({
+      success: false,
+      error: error.message,
+    });
+  }
+});
+
+/**
+ * GET /api/baselinker/invoice/:id/file
+ * Get invoice PDF file
+ */
+router.get('/invoice/:id/file', featureFlagMiddleware('baselinker.invoices'), async (req, res) => {
+  try {
+    const client = await getBaseLinkerClient(req, res);
+    if (!client) return;
+
+    const invoiceId = parseInt(req.params.id, 10);
+    if (isNaN(invoiceId)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid invoice ID',
+      });
+    }
+
+    const getExternal = req.query.external === 'true';
+    const result = await client.getInvoiceFile(invoiceId, getExternal);
+
+    if (!result.invoice) {
+      return res.status(404).json({
+        success: false,
+        error: 'Invoice file not found',
+      });
+    }
+
+    res.json({
+      success: true,
+      data: result,
+    });
+  } catch (error) {
+    logger.error('Failed to fetch invoice file', {
+      error: error.message,
+      invoiceId: req.params.id,
+      companyId: req.company?.id,
+    });
+    res.status(500).json({
+      success: false,
+      error: error.message,
+    });
+  }
+});
+
+/**
  * GET /api/baselinker/inventories
  * Get available inventories
  */

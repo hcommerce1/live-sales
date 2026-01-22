@@ -183,6 +183,193 @@ class BaselinkerService {
     const response = await this.makeRequest(userToken, 'getInventories', {});
     return response.inventories || [];
   }
+
+  /**
+   * Get order sources
+   * Returns types of order sources along with their IDs.
+   * @param {string} userToken - User's BaseLinker API token
+   * @returns {Promise<object>} - Order sources grouped by type
+   */
+  async getOrderSources(userToken) {
+    const response = await this.makeRequest(userToken, 'getOrderSources', {});
+    return response.sources || {};
+  }
+
+  /**
+   * Get invoices from BaseLinker
+   * Maximum 100 invoices are returned at a time.
+   * @param {string} userToken - User's BaseLinker API token
+   * @param {object} filters - Invoice filters
+   * @param {number} filters.invoice_id - (optional) Specific invoice ID
+   * @param {number} filters.order_id - (optional) Order ID to get invoice for
+   * @param {number} filters.date_from - (optional) Unix timestamp start date
+   * @param {number} filters.id_from - (optional) Invoice ID to paginate from
+   * @param {number} filters.series_id - (optional) Numbering series ID
+   * @param {boolean} filters.get_external_invoices - (optional) If false, omits external invoices
+   * @returns {Promise<Array>} - List of invoices
+   */
+  async getInvoices(userToken, filters = {}) {
+    const parameters = {
+      invoice_id: filters.invoice_id || null,
+      order_id: filters.order_id || null,
+      date_from: filters.date_from ? Math.floor(new Date(filters.date_from).getTime() / 1000) : null,
+      id_from: filters.id_from || null,
+      series_id: filters.series_id || null,
+      get_external_invoices: filters.get_external_invoices !== undefined ? filters.get_external_invoices : true,
+    };
+
+    // Remove null values
+    Object.keys(parameters).forEach(key => {
+      if (parameters[key] === null) {
+        delete parameters[key];
+      }
+    });
+
+    const response = await this.makeRequest(userToken, 'getInvoices', parameters);
+    return response.invoices || [];
+  }
+
+  /**
+   * Get invoice file (PDF) from BaseLinker
+   * @param {string} userToken - User's BaseLinker API token
+   * @param {number} invoiceId - Invoice ID
+   * @param {boolean} getExternal - If true, get external invoice if available
+   * @returns {Promise<object>} - { invoice: base64, invoice_number: string }
+   */
+  async getInvoiceFile(userToken, invoiceId, getExternal = false) {
+    const parameters = {
+      invoice_id: invoiceId,
+      get_external: getExternal
+    };
+
+    const response = await this.makeRequest(userToken, 'getInvoiceFile', parameters);
+    return {
+      invoice: response.invoice || null,
+      invoice_number: response.invoice_number || null
+    };
+  }
+
+  /**
+   * Get orders with pagination support for large datasets
+   * Fetches all orders in batches of 100 (BaseLinker limit)
+   * @param {string} userToken - User's BaseLinker API token
+   * @param {object} filters - Order filters
+   * @param {number} maxRecords - Maximum records to fetch (default 10000)
+   * @returns {Promise<Array>} - List of all orders
+   */
+  async getOrdersWithPagination(userToken, filters = {}, maxRecords = 10000) {
+    const BATCH_SIZE = 100;
+    let allOrders = [];
+    let lastDateConfirmed = filters.date_from ? Math.floor(new Date(filters.date_from).getTime() / 1000) : 0;
+    let hasMore = true;
+
+    while (hasMore && allOrders.length < maxRecords) {
+      const batchFilters = {
+        ...filters,
+        date_from: null // We use date_confirmed_from directly
+      };
+
+      const parameters = {
+        date_confirmed_from: lastDateConfirmed,
+        date_confirmed_to: filters.date_to ? Math.floor(new Date(filters.date_to).getTime() / 1000) : null,
+        order_status_id: filters.status || null,
+        get_unconfirmed_orders: filters.get_unconfirmed || false,
+        filter_order_source: filters.order_source || null,
+        filter_order_source_id: filters.order_source_id || null,
+      };
+
+      // Remove null values
+      Object.keys(parameters).forEach(key => {
+        if (parameters[key] === null) {
+          delete parameters[key];
+        }
+      });
+
+      const response = await this.makeRequest(userToken, 'getOrders', parameters);
+      const batch = response.orders || [];
+
+      if (batch.length === 0) {
+        hasMore = false;
+      } else {
+        allOrders = allOrders.concat(batch);
+
+        // Prepare for next page - use last order's date_confirmed + 1 second
+        const lastOrder = batch[batch.length - 1];
+        lastDateConfirmed = lastOrder.date_confirmed + 1;
+        hasMore = batch.length === BATCH_SIZE;
+      }
+
+      // Rate limiting - API has 100 req/min limit
+      // Add small delay between batches to be safe
+      if (hasMore) {
+        await new Promise(resolve => setTimeout(resolve, 100));
+      }
+    }
+
+    logger.info(`Fetched ${allOrders.length} orders with pagination`, {
+      filters,
+      batchCount: Math.ceil(allOrders.length / BATCH_SIZE)
+    });
+
+    return allOrders;
+  }
+
+  /**
+   * Get invoices with pagination support
+   * Fetches all invoices in batches of 100 (BaseLinker limit)
+   * @param {string} userToken - User's BaseLinker API token
+   * @param {object} filters - Invoice filters
+   * @param {number} maxRecords - Maximum records to fetch (default 10000)
+   * @returns {Promise<Array>} - List of all invoices
+   */
+  async getInvoicesWithPagination(userToken, filters = {}, maxRecords = 10000) {
+    const BATCH_SIZE = 100;
+    let allInvoices = [];
+    let lastId = filters.id_from || 0;
+    let hasMore = true;
+
+    while (hasMore && allInvoices.length < maxRecords) {
+      const parameters = {
+        id_from: lastId,
+        date_from: filters.date_from ? Math.floor(new Date(filters.date_from).getTime() / 1000) : null,
+        series_id: filters.series_id || null,
+        get_external_invoices: filters.get_external_invoices !== undefined ? filters.get_external_invoices : true,
+      };
+
+      // Remove null values
+      Object.keys(parameters).forEach(key => {
+        if (parameters[key] === null) {
+          delete parameters[key];
+        }
+      });
+
+      const response = await this.makeRequest(userToken, 'getInvoices', parameters);
+      const batch = response.invoices || [];
+
+      if (batch.length === 0) {
+        hasMore = false;
+      } else {
+        allInvoices = allInvoices.concat(batch);
+
+        // Prepare for next page - use last invoice's ID + 1
+        const lastInvoice = batch[batch.length - 1];
+        lastId = lastInvoice.invoice_id + 1;
+        hasMore = batch.length === BATCH_SIZE;
+      }
+
+      // Rate limiting
+      if (hasMore) {
+        await new Promise(resolve => setTimeout(resolve, 100));
+      }
+    }
+
+    logger.info(`Fetched ${allInvoices.length} invoices with pagination`, {
+      filters,
+      batchCount: Math.ceil(allInvoices.length / BATCH_SIZE)
+    });
+
+    return allInvoices;
+  }
 }
 
 module.exports = new BaselinkerService();
