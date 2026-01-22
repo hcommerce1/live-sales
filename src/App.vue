@@ -945,20 +945,13 @@ async function saveBaselinkerToken() {
     }
 
     try {
-        const response = await fetch('/api/user/baselinker-token', {
+        // Use API.request to include X-Company-Id header automatically
+        await API.request('/api/user/baselinker-token', {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${localStorage.getItem('accessToken')}`
-            },
             body: JSON.stringify({
                 token: baselinkerToken.value
             })
         })
-
-        if (!response.ok) {
-            throw new Error('Failed to save token')
-        }
 
         tokenSaved.value = true
         setTimeout(() => {
@@ -972,18 +965,11 @@ async function saveBaselinkerToken() {
 
 async function loadBaselinkerToken() {
     try {
-        const response = await fetch('/api/user/baselinker-token', {
-            method: 'GET',
-            headers: {
-                'Authorization': `Bearer ${localStorage.getItem('accessToken')}`
-            }
-        })
+        // Use API.request to include X-Company-Id header automatically
+        const data = await API.request('/api/user/baselinker-token')
 
-        if (response.ok) {
-            const data = await response.json()
-            if (data.token) {
-                baselinkerToken.value = data.token
-            }
+        if (data.token) {
+            baselinkerToken.value = data.token
         }
     } catch (error) {
         console.error('Error loading BaseLinker token:', error)
