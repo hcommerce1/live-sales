@@ -475,13 +475,42 @@ class ExportService {
    * @returns {Promise<Array>} - Array of results per sheet
    */
   async writeToSheets(config, headers, data) {
-    const sheets = config.sheets_config || [
-      {
-        sheet_url: config.sheets?.sheet_url || config.sheetsUrl,
-        sheet_name: config.sheets?.sheet_name,
-        write_mode: config.sheets?.write_mode || config.sheetsWriteMode || 'append'
-      }
-    ];
+    // Debug: log all sheet-related config fields
+    logger.info('[writeToSheets] Config fields', {
+      hasSheets: !!config.sheets,
+      hasSheetsConfig: !!config.sheets_config,
+      hasSheetsUrl: !!config.sheetsUrl,
+      sheetsType: config.sheets ? (Array.isArray(config.sheets) ? 'array' : typeof config.sheets) : 'undefined',
+      sheetsConfigType: config.sheets_config ? (Array.isArray(config.sheets_config) ? 'array' : typeof config.sheets_config) : 'undefined',
+      sheetsContent: JSON.stringify(config.sheets),
+      sheetsConfigContent: JSON.stringify(config.sheets_config)
+    });
+
+    // Support multiple naming conventions: sheets_config, sheets (array), sheets (object), sheetsUrl
+    let sheets;
+    if (config.sheets_config && Array.isArray(config.sheets_config)) {
+      sheets = config.sheets_config;
+    } else if (config.sheets && Array.isArray(config.sheets)) {
+      sheets = config.sheets;
+    } else if (config.sheets && config.sheets.sheet_url) {
+      sheets = [config.sheets];
+    } else if (config.sheetsUrl) {
+      sheets = [{
+        sheet_url: config.sheetsUrl,
+        sheet_name: null,
+        write_mode: config.sheetsWriteMode || 'append'
+      }];
+    } else {
+      logger.error('[writeToSheets] No valid sheets configuration found!', {
+        configKeys: Object.keys(config)
+      });
+      throw new Error('No Google Sheets URL configured');
+    }
+
+    logger.info('[writeToSheets] Resolved sheets config', {
+      sheetsCount: sheets.length,
+      sheets: JSON.stringify(sheets)
+    });
 
     const MAX_RETRIES = 3;
     const RETRY_TIMEOUT_MS = 30000;

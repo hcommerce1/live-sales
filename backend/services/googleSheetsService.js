@@ -66,9 +66,25 @@ class GoogleSheetsService {
    * @returns {string} - Sheet ID
    */
   extractSheetId(url) {
+    logger.info('[extractSheetId] Input URL', {
+      url,
+      urlType: typeof url,
+      urlLength: url?.length
+    });
+
+    if (!url || typeof url !== 'string') {
+      logger.error('[extractSheetId] URL is invalid', { url, urlType: typeof url });
+      throw new Error(`Invalid Google Sheets URL: ${url}`);
+    }
+
     const match = url.match(/\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/);
+    logger.info('[extractSheetId] Regex match result', {
+      matchFound: !!match,
+      extractedId: match ? match[1] : null
+    });
+
     if (!match) {
-      throw new Error('Invalid Google Sheets URL');
+      throw new Error(`Invalid Google Sheets URL format: ${url}`);
     }
     return match[1];
   }
