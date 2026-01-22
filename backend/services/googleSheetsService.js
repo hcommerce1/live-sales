@@ -221,54 +221,93 @@ class GoogleSheetsService {
         rowCount: data.length,
         columnCount: headers.length,
         hasSheets: !!this.sheets,
-        hasAuth: !!this.auth
+        hasAuth: !!this.auth,
+        headersPreview: headers.slice(0, 5).join(', ') + '...'
       });
 
       if (!this.sheets) {
+        logger.error('[SHEETS WRITE] Google Sheets API not initialized!');
         throw new Error('Google Sheets API not initialized');
       }
 
-      const sheetId = this.extractSheetId(sheetUrl);
-      const gid = this.extractGid(sheetUrl);
-
-      logger.info(`[SHEETS WRITE] Extracted IDs`, {
-        sheetId,
-        gid
-      });
-
-      // Get sheet name if not provided
-      if (!sheetName) {
-        if (gid) {
-          logger.info(`[SHEETS WRITE] Getting sheet name by GID...`, { gid });
-          // Use GID to find the specific sheet
-          sheetName = await this.getSheetNameByGid(sheetId, gid);
-          logger.info(`[SHEETS WRITE] Resolved sheet name from GID`, { gid, sheetName });
-        } else {
-          logger.info(`[SHEETS WRITE] Getting first sheet name...`);
-          // Default to first sheet
-          const spreadsheet = await this.sheets.spreadsheets.get({
-            spreadsheetId: sheetId,
-          });
-          sheetName = spreadsheet.data.sheets[0].properties.title;
-          logger.info(`[SHEETS WRITE] Got first sheet name`, { sheetName });
-        }
+      // Step 1: Extract sheet ID
+      logger.info('[SHEETS WRITE] Step 1: Extracting sheet ID from URL...');
+      let sheetId, gid;
+      try {
+        sheetId = this.extractSheetId(sheetUrl);
+        gid = this.extractGid(sheetUrl);
+        logger.info(`[SHEETS WRITE] Step 1 OK: Extracted IDs`, { sheetId, gid });
+      } catch (extractError) {
+        logger.error('[SHEETS WRITE] Step 1 FAILED: Could not extract sheet ID', {
+          sheetUrl,
+          error: extractError.message
+        });
+        throw extractError;
       }
 
-      // Calculate required size and dynamic column range
+      // Step 2: Get sheet name
+      logger.info('[SHEETS WRITE] Step 2: Getting sheet name...');
+      try {
+        if (!sheetName) {
+          if (gid) {
+            logger.info(`[SHEETS WRITE] Getting sheet name by GID...`, { gid });
+            sheetName = await this.getSheetNameByGid(sheetId, gid);
+            logger.info(`[SHEETS WRITE] Step 2 OK: Resolved sheet name from GID`, { gid, sheetName });
+          } else {
+            logger.info(`[SHEETS WRITE] Getting first sheet name...`);
+            const spreadsheet = await this.sheets.spreadsheets.get({
+              spreadsheetId: sheetId,
+            });
+            sheetName = spreadsheet.data.sheets[0].properties.title;
+            logger.info(`[SHEETS WRITE] Step 2 OK: Got first sheet name`, { sheetName });
+          }
+        } else {
+          logger.info(`[SHEETS WRITE] Step 2 OK: Using provided sheet name`, { sheetName });
+        }
+      } catch (sheetNameError) {
+        logger.error('[SHEETS WRITE] Step 2 FAILED: Could not get sheet name', {
+          sheetId,
+          gid,
+          error: sheetNameError.message,
+          errorCode: sheetNameError.code,
+          errorStatus: sheetNameError.response?.status
+        });
+        throw sheetNameError;
+      }
+
+      // Step 3: Calculate required size
+      logger.info('[SHEETS WRITE] Step 3: Calculating required size...');
       const requiredCols = headers.length;
       const requiredRows = data.length + 10; // Extra buffer
       const lastColLetter = this.columnToLetter(requiredCols);
       const range = `${sheetName}!A:${lastColLetter}`;
 
-      logger.info(`[SHEETS WRITE] Calculated range`, {
+      logger.info(`[SHEETS WRITE] Step 3 OK: Calculated range`, {
         requiredCols,
         requiredRows,
         lastColLetter,
         range
       });
 
-      // Ensure sheet has enough rows and columns
-      await this.ensureSheetSize(sheetId, sheetName, requiredRows, requiredCols);
+      // Step 4: Ensure sheet has enough rows and columns
+      logger.info('[SHEETS WRITE] Step 4: Ensuring sheet size...');
+      try {
+        await this.ensureSheetSize(sheetId, sheetName, requiredRows, requiredCols);
+        logger.info('[SHEETS WRITE] Step 4 OK: Sheet size ensured');
+      } catch (sizeError) {
+        logger.error('[SHEETS WRITE] Step 4 FAILED: Could not ensure sheet size', {
+          sheetId,
+          sheetName,
+          requiredRows,
+          requiredCols,
+          error: sizeError.message,
+          errorCode: sizeError.code,
+          errorResponse: JSON.stringify(sizeError.response?.data)
+        });
+        throw sizeError;
+      }
+
+      logger.info('[SHEETS WRITE] Step 5: Writing data...');
 
       if (writeMode === 'replace') {
         // Clear existing data
