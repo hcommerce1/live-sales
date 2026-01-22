@@ -53,22 +53,13 @@
               <span v-if="sheet.urlStatus === 'valid'" class="url-status valid">✓</span>
               <span v-if="sheet.urlStatus === 'invalid'" class="url-status invalid">✗</span>
             </div>
-            <p v-if="sheet.extractedId" class="sheet-id">ID: {{ sheet.extractedId }}</p>
+            <p v-if="sheet.extractedId" class="sheet-id">
+              ID: {{ sheet.extractedId }}
+              <span v-if="sheet.extractedGid"> | Zakładka: gid={{ sheet.extractedGid }}</span>
+            </p>
             <p v-if="sheet.urlStatus === 'invalid'" class="error-text">
               Nieprawidłowy URL arkusza Google Sheets
             </p>
-          </div>
-
-          <!-- Sheet name (tab) -->
-          <div class="field-group">
-            <label>Nazwa zakładki <span class="optional">(opcjonalnie)</span></label>
-            <input
-              v-model="sheet.sheet_name"
-              type="text"
-              placeholder="Arkusz1"
-              class="sheet-name-input"
-            />
-            <p class="field-hint">Pozostaw puste, aby użyć pierwszej zakładki</p>
           </div>
 
           <!-- Write mode -->
@@ -126,10 +117,10 @@ const props = defineProps({
     type: Array,
     default: () => [{
       sheet_url: '',
-      sheet_name: '',
       write_mode: 'append',
       urlStatus: null,
-      extractedId: null
+      extractedId: null,
+      extractedGid: null
     }]
   },
   serviceAccountEmail: {
@@ -160,25 +151,32 @@ function copyEmail() {
   }, 2000)
 }
 
-// Validate Google Sheets URL and extract ID
+// Validate Google Sheets URL and extract ID + GID
 function validateUrl(sheet) {
   const url = sheet.sheet_url
   if (!url) {
     sheet.urlStatus = null
     sheet.extractedId = null
+    sheet.extractedGid = null
     return
   }
 
   // Pattern: https://docs.google.com/spreadsheets/d/{spreadsheetId}/...
-  const regex = /^https:\/\/docs\.google\.com\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/
-  const match = url.match(regex)
+  const idRegex = /^https:\/\/docs\.google\.com\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/
+  const idMatch = url.match(idRegex)
 
-  if (match) {
+  // Pattern for GID: ?gid=123 or #gid=123
+  const gidRegex = /[?#]gid=(\d+)/
+  const gidMatch = url.match(gidRegex)
+
+  if (idMatch) {
     sheet.urlStatus = 'valid'
-    sheet.extractedId = match[1]
+    sheet.extractedId = idMatch[1]
+    sheet.extractedGid = gidMatch ? gidMatch[1] : null
   } else {
     sheet.urlStatus = 'invalid'
     sheet.extractedId = null
+    sheet.extractedGid = null
   }
 }
 
@@ -188,10 +186,10 @@ function addSheet() {
     ...sheets.value,
     {
       sheet_url: '',
-      sheet_name: '',
       write_mode: 'append',
       urlStatus: null,
-      extractedId: null
+      extractedId: null,
+      extractedGid: null
     }
   ]
 }
@@ -208,10 +206,10 @@ watch(() => props.modelValue, (newVal) => {
   if (!newVal || newVal.length === 0) {
     emit('update:modelValue', [{
       sheet_url: '',
-      sheet_name: '',
       write_mode: 'append',
       urlStatus: null,
-      extractedId: null
+      extractedId: null,
+      extractedGid: null
     }])
   }
 }, { immediate: true })
@@ -352,22 +350,17 @@ watch(() => props.modelValue, (newVal) => {
   position: relative;
 }
 
-.url-input,
-.sheet-name-input {
+.url-input {
   width: 100%;
   padding: 0.75rem 1rem;
+  padding-right: 2.5rem;
   border: 1px solid #e5e7eb;
   border-radius: 8px;
   font-size: 0.9rem;
   transition: all 0.2s;
 }
 
-.url-input {
-  padding-right: 2.5rem;
-}
-
-.url-input:focus,
-.sheet-name-input:focus {
+.url-input:focus {
   outline: none;
   border-color: #6366f1;
   box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
