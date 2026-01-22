@@ -432,27 +432,70 @@ class BaseLinkerClient {
  * @throws {Error} If token not configured
  */
 async function createForCompany(companyId) {
+  logger.info('=== CREATE BASELINKER CLIENT ===', {
+    companyId,
+    companyIdType: typeof companyId,
+    timestamp: new Date().toISOString()
+  });
+
   // Check cache first
   const cacheKey = `bl:${companyId}`;
   const cached = clientCache.get(cacheKey);
 
+  logger.info('Cache check', {
+    companyId,
+    cacheKey,
+    hasCached: !!cached,
+    cachedCreatedAt: cached?.createdAt,
+    cacheAge: cached ? Date.now() - cached.createdAt : null,
+    cacheTTL: CACHE_TTL_MS,
+    isCacheValid: cached && Date.now() - cached.createdAt < CACHE_TTL_MS
+  });
+
   if (cached && Date.now() - cached.createdAt < CACHE_TTL_MS) {
+    logger.info('Returning cached client', { companyId });
     return cached.client;
   }
 
   // Get token from CompanySecret
+  logger.info('Fetching token from CompanySecret', {
+    companyId,
+    secretType: companySecretService.SECRET_TYPES.BASELINKER_TOKEN
+  });
+
   const secret = await companySecretService.getSecret(
     companyId,
     companySecretService.SECRET_TYPES.BASELINKER_TOKEN
   );
 
+  logger.info('CompanySecret lookup result', {
+    companyId,
+    secretFound: !!secret,
+    secretHasValue: secret ? !!secret.value : false,
+    secretValueLength: secret?.value ? secret.value.length : 0,
+    secretCreatedAt: secret?.createdAt,
+    secretUpdatedAt: secret?.updatedAt,
+    secretLastUsedAt: secret?.lastUsedAt
+  });
+
   if (!secret) {
+    logger.error('BaseLinker token NOT FOUND in CompanySecret', {
+      companyId,
+      secretType: companySecretService.SECRET_TYPES.BASELINKER_TOKEN,
+      suggestion: 'User needs to save token in Configuration page'
+    });
     const error = new Error('BaseLinker token not configured for this company');
     error.code = 'TOKEN_NOT_CONFIGURED';
     throw error;
   }
 
   // Create client
+  logger.info('Creating BaseLinker client', {
+    companyId,
+    tokenLength: secret.value.length,
+    tokenPrefix: secret.value.substring(0, 8) + '...'
+  });
+
   const client = new BaseLinkerClient(secret.value, companyId);
 
   // Cache it
@@ -460,6 +503,8 @@ async function createForCompany(companyId) {
     client,
     createdAt: Date.now(),
   });
+
+  logger.info('BaseLinker client created and cached', { companyId, cacheKey });
 
   // Clean cache after TTL
   setTimeout(() => {

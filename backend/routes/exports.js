@@ -275,19 +275,45 @@ router.delete('/:id', (req, res) => {
  * Run export immediately
  */
 router.post('/:id/run', async (req, res) => {
+  const exportId = req.params.id;
+  const userId = req.user?.id;
+  const companyId = req.company?.id;
+
+  logger.info('=== EXPORT RUN REQUEST ===', {
+    exportId,
+    userId,
+    companyId,
+    companyName: req.company?.name,
+    headers: {
+      'x-company-id': req.headers['x-company-id'],
+      'authorization': req.headers['authorization'] ? 'Bearer ...' : 'missing'
+    },
+    timestamp: new Date().toISOString()
+  });
+
   try {
-    const userId = req.user.id; // From authMiddleware.authenticate()
-    const result = await exportService.runExport(req.params.id, userId);
+    logger.info('Calling exportService.runExport', { exportId, userId });
+    const result = await exportService.runExport(exportId, userId);
+
+    logger.info('Export completed successfully', {
+      exportId,
+      userId,
+      result: JSON.stringify(result)
+    });
 
     res.json({
       success: true,
       result
     });
   } catch (error) {
-    logger.error('Failed to run export', {
-      exportId: req.params.id,
-      userId: req.user?.id,
-      error: error.message
+    logger.error('=== EXPORT FAILED ===', {
+      exportId,
+      userId,
+      companyId,
+      errorMessage: error.message,
+      errorCode: error.code,
+      errorStack: error.stack,
+      timestamp: new Date().toISOString()
     });
     res.status(500).json({
       success: false,

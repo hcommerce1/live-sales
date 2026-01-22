@@ -277,16 +277,46 @@ class ExportService {
    */
   async runExport(exportId, userId = null) {
     const startTime = Date.now();
+
+    logger.info('=== EXPORT RUN START ===', {
+      exportId,
+      userId,
+      timestamp: new Date().toISOString()
+    });
+
     const config = this.getExport(exportId);
 
+    logger.info('Export config loaded', {
+      exportId,
+      configFound: !!config,
+      configKeys: config ? Object.keys(config) : null,
+      configCompanyId: config?.companyId,
+      configUserId: config?.userId,
+      configDataset: config?.dataset,
+      configStatus: config?.status
+    });
+
     if (!config) {
+      logger.error('Export configuration not found', { exportId });
       throw new Error(`Export configuration not found: ${exportId}`);
     }
 
     const effectiveUserId = userId || config.userId;
     const companyId = config.companyId;
 
+    logger.info('Resolved IDs', {
+      exportId,
+      effectiveUserId,
+      companyId,
+      originalUserId: userId,
+      configUserId: config.userId
+    });
+
     if (!companyId) {
+      logger.error('Company ID not available', {
+        exportId,
+        config: JSON.stringify(config, null, 2)
+      });
       throw new Error('Company ID not available for this export');
     }
 
@@ -294,7 +324,10 @@ class ExportService {
       exportId,
       userId: effectiveUserId,
       companyId,
-      dataset: config.dataset
+      dataset: config.dataset,
+      selectedFields: config.selected_fields,
+      filters: JSON.stringify(config.filters),
+      sheets: config.sheets ? config.sheets.length : 0
     });
 
     const metadata = {
@@ -304,7 +337,9 @@ class ExportService {
 
     try {
       // Get BaseLinker client for company
+      logger.info('Getting BaseLinker client', { companyId });
       const client = await getClient(companyId);
+      logger.info('BaseLinker client obtained successfully', { companyId });
 
       // Split filters into API-side and application-side
       const { apiFilters, appFilters } = splitFilters(config.filters, config.dataset);

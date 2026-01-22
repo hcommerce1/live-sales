@@ -39,7 +39,20 @@ const SECRET_TYPES = {
  * @returns {Promise<{value: string, lastUsedAt: Date}|null>}
  */
 async function getSecret(companyId, secretType) {
+  logger.info('=== GET SECRET ===', {
+    companyId,
+    companyIdType: typeof companyId,
+    secretType,
+    timestamp: new Date().toISOString()
+  });
+
   const db = getPrisma();
+
+  logger.info('Querying CompanySecret table', {
+    companyId,
+    secretType,
+    query: `companyId_secretType: { companyId: ${companyId}, secretType: ${secretType} }`
+  });
 
   const secret = await db.companySecret.findUnique({
     where: {
@@ -50,19 +63,73 @@ async function getSecret(companyId, secretType) {
     },
   });
 
+  logger.info('CompanySecret query result', {
+    companyId,
+    secretType,
+    found: !!secret,
+    secretId: secret?.id,
+    secretCreatedAt: secret?.createdAt,
+    secretUpdatedAt: secret?.updatedAt,
+    hasEncryptedValue: !!secret?.encryptedValue,
+    encryptedValueLength: secret?.encryptedValue?.length
+  });
+
   if (!secret) {
+    logger.warn('Secret NOT FOUND in database', {
+      companyId,
+      secretType,
+      suggestion: 'Check if token was saved with correct companyId'
+    });
+
+    // Debug: list all secrets for this company
+    try {
+      const allSecrets = await db.companySecret.findMany({
+        where: { companyId },
+        select: { secretType: true, createdAt: true }
+      });
+      logger.info('All secrets for this company', {
+        companyId,
+        secretsCount: allSecrets.length,
+        secretTypes: allSecrets.map(s => s.secretType)
+      });
+    } catch (e) {
+      logger.warn('Could not list secrets for debug', { error: e.message });
+    }
+
+    // Debug: list all companies with this secret type
+    try {
+      const companiesWithSecret = await db.companySecret.findMany({
+        where: { secretType },
+        select: { companyId: true, createdAt: true }
+      });
+      logger.info('All companies with this secret type', {
+        secretType,
+        companiesCount: companiesWithSecret.length,
+        companyIds: companiesWithSecret.map(s => s.companyId)
+      });
+    } catch (e) {
+      logger.warn('Could not list companies for debug', { error: e.message });
+    }
+
     return null;
   }
 
   // Decrypt the value
   let decryptedValue;
   try {
+    logger.info('Decrypting secret value', { companyId, secretType });
     decryptedValue = cryptoService.decrypt(secret.encryptedValue);
+    logger.info('Secret decrypted successfully', {
+      companyId,
+      secretType,
+      decryptedLength: decryptedValue.length
+    });
   } catch (error) {
     logger.error('Failed to decrypt secret', {
       companyId,
       secretType,
       error: error.message,
+      stack: error.stack
     });
     throw new Error('DECRYPTION_FAILED');
   }
