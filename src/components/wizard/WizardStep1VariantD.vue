@@ -156,7 +156,7 @@
     <!-- Modal: Change dataset warning -->
     <div v-if="showChangeDatasetModal" class="fixed inset-0 z-50 flex items-center justify-center">
       <div class="absolute inset-0 bg-black/50" @click="showChangeDatasetModal = false"></div>
-      <div class="relative bg-white rounded-xl shadow-2xl p-6 max-w-md mx-4">
+      <div class="relative bg-white rounded-xl shadow-2xl p-6 max-w-lg mx-4">
         <h3 class="text-lg font-semibold text-gray-900 mb-2">Zmiana typu danych</h3>
         <p class="text-gray-600 mb-4">
           Jeden eksport = jeden typ danych.<br>
@@ -166,10 +166,10 @@
           Jesli potrzebujesz innego typu danych, utworz nowy eksport.
         </p>
 
-        <!-- Dataset options in modal -->
-        <div class="space-y-2 mb-6 max-h-48 overflow-y-auto">
+        <!-- Dataset options in modal (excluding currently selected) -->
+        <div class="space-y-2 mb-6">
           <label
-            v-for="dataset in availableDatasets"
+            v-for="dataset in availableDatasets.filter(d => d.key !== selectedDataset)"
             :key="dataset.key"
             class="flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-all"
             :class="{

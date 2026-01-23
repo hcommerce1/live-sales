@@ -66,18 +66,22 @@
 
       <!-- Step 1: Dataset & Fields - A/B TEST VARIANTS -->
       <div v-else-if="currentStep === 0" class="h-full flex flex-col">
-        <!-- Variant Switcher for A/B Testing -->
-        <div class="flex-shrink-0 mb-4 flex items-center justify-end gap-2">
-          <span class="text-xs text-gray-400">Test wariantu:</span>
-          <select
-            :value="activeVariant"
-            class="text-xs px-2 py-1 border border-gray-200 rounded-lg focus:border-blue-500 outline-none"
-            @change="setVariant($event.target.value)"
-          >
-            <option v-for="(variant, key) in step1Variants" :key="key" :value="key">
-              {{ key }}: {{ variant.name }}
-            </option>
-          </select>
+        <!-- Variant Switcher -->
+        <div class="flex-shrink-0 mb-4 flex items-center justify-end">
+          <div class="flex items-center gap-2 px-3 py-1.5 bg-gray-50 border border-gray-200 rounded-lg">
+            <span class="text-xs text-gray-500">Widok:</span>
+            <select
+              :value="activeVariant"
+              class="text-xs font-medium text-gray-700 bg-transparent border-0 focus:ring-0 cursor-pointer pr-6 outline-none"
+              @change="setVariant($event.target.value)"
+            >
+              <option v-for="(variant, key) in step1Variants" :key="key" :value="key">
+                {{ variant.name }}
+              </option>
+            </select>
+            <span class="text-xs text-gray-300">|</span>
+            <span class="text-xs text-gray-400">Wyprobuj inny widok</span>
+          </div>
         </div>
 
         <!-- Dynamic Variant Component -->
