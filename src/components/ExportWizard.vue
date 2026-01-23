@@ -1,21 +1,22 @@
 <template>
-  <!-- Centered modal-like wizard -->
-  <div class="fixed inset-0 bg-gray-900/50 flex items-center justify-center p-4 z-50">
-    <div class="bg-white rounded-lg shadow-xl w-full max-w-2xl max-h-[85vh] flex flex-col">
+  <!-- Full-screen wizard (fills content area next to sidebar) -->
+  <div class="flex flex-col min-h-screen bg-gray-50">
 
-      <!-- Header -->
-      <div class="px-6 py-4 border-b border-gray-200 flex-shrink-0">
+    <!-- Sticky Header -->
+    <div class="bg-white border-b border-gray-200 sticky top-0 z-10">
+      <div class="max-w-4xl mx-auto px-4 md:px-6 py-4">
         <div class="flex items-center justify-between">
           <div>
-            <h1 class="text-lg font-semibold text-gray-900">
+            <h1 class="text-xl font-semibold text-gray-900">
               {{ props.exportId ? 'Edytuj eksport' : 'Nowy eksport' }}
             </h1>
-            <p class="text-sm text-gray-500">{{ steps[currentStep].description }}</p>
+            <p class="text-sm text-gray-500 mt-0.5">{{ steps[currentStep].description }}</p>
           </div>
           <button
             type="button"
-            class="text-gray-400 hover:text-gray-600 p-1"
+            class="text-gray-400 hover:text-gray-600 p-2 hover:bg-gray-100 rounded-lg transition-colors"
             @click="cancelWizard"
+            title="Zamknij"
           >
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
@@ -24,39 +25,42 @@
         </div>
 
         <!-- Progress steps -->
-        <div class="flex items-center gap-1 mt-4">
+        <div class="flex items-center gap-2 mt-4">
           <template v-for="(step, index) in steps" :key="index">
             <button
               type="button"
-              class="flex items-center gap-1.5 px-2 py-1 rounded text-xs font-medium transition-colors"
+              class="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-all"
               :class="{
                 'bg-blue-100 text-blue-700': currentStep === index,
-                'text-green-600': currentStep > index,
+                'text-green-600 hover:bg-green-50': currentStep > index,
                 'text-gray-400': currentStep < index
               }"
+              :disabled="currentStep < index"
               @click="goToStep(index)"
             >
-              <span class="w-5 h-5 rounded-full flex items-center justify-center text-[10px] border"
+              <span class="w-6 h-6 rounded-full flex items-center justify-center text-xs border-2"
                 :class="{
                   'bg-blue-600 text-white border-blue-600': currentStep === index,
                   'bg-green-500 text-white border-green-500': currentStep > index,
                   'border-gray-300 text-gray-400': currentStep < index
                 }"
               >
-                <svg v-if="currentStep > index" class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg v-if="currentStep > index" class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
                 </svg>
                 <span v-else>{{ index + 1 }}</span>
               </span>
-              <span class="hidden sm:inline">{{ step.label }}</span>
+              <span class="hidden md:inline">{{ step.label }}</span>
             </button>
-            <div v-if="index < steps.length - 1" class="w-4 h-px bg-gray-200"/>
+            <div v-if="index < steps.length - 1" class="w-8 h-0.5 bg-gray-200 hidden sm:block"/>
           </template>
         </div>
       </div>
+    </div>
 
-      <!-- Content - scrollable -->
-      <div class="flex-1 overflow-y-auto px-6 py-4">
+    <!-- Content - scrollable -->
+    <div class="flex-1 overflow-y-auto">
+      <div class="max-w-4xl mx-auto px-4 md:px-6 py-6">
         <!-- Loading -->
         <div v-if="isLoading" class="flex items-center justify-center py-12">
           <div class="animate-spin rounded-full h-6 w-6 border-2 border-blue-600 border-t-transparent"></div>
@@ -257,23 +261,25 @@
           </div>
         </div>
       </div>
+    </div>
 
-      <!-- Footer -->
-      <div class="px-6 py-4 border-t border-gray-200 flex-shrink-0">
+    <!-- Sticky Footer -->
+    <div class="bg-white border-t border-gray-200 sticky bottom-0 z-10">
+      <div class="max-w-4xl mx-auto px-4 md:px-6 py-4">
         <div class="flex items-center justify-between">
           <button
             type="button"
-            class="text-sm text-gray-500 hover:text-gray-700"
+            class="px-4 py-2 text-sm font-medium text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-colors"
             @click="cancelWizard"
           >
             Anuluj
           </button>
 
-          <div class="flex items-center gap-2">
+          <div class="flex items-center gap-3">
             <button
               v-if="currentStep > 0"
               type="button"
-              class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-200 rounded-lg hover:bg-gray-50"
+              class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
               @click="prevStep"
             >
               Wstecz
@@ -281,7 +287,7 @@
             <button
               v-if="currentStep < steps.length - 1"
               type="button"
-              class="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:bg-blue-300 disabled:cursor-not-allowed"
+              class="px-5 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:bg-blue-300 disabled:cursor-not-allowed transition-colors"
               :disabled="!canProceed"
               @click="nextStep"
             >
@@ -290,7 +296,7 @@
             <button
               v-else
               type="button"
-              class="px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-lg hover:bg-green-700 disabled:bg-green-300 disabled:cursor-not-allowed flex items-center gap-2"
+              class="px-5 py-2 text-sm font-medium text-white bg-green-600 rounded-lg hover:bg-green-700 disabled:bg-green-300 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
               :disabled="!canSave || isSaving || duplicateSheetWarning"
               @click="saveExport"
             >
@@ -332,6 +338,7 @@ const isSaving = ref(false)
 const isLoading = ref(true)
 const draggedIndex = ref(null)
 const duplicateSheetWarning = ref(false)
+const fieldsPerDataset = ref({})  // Autozapis pól per dataset: { orders: [...], products: [...] }
 
 // Field definitions from backend
 const fieldDefinitions = ref({
@@ -429,8 +436,16 @@ const canSave = computed(() => {
 function selectDataset(dataset) {
   if (!dataset.available) return
   if (config.value.dataset !== dataset.key) {
+    // Zapisz obecne pola przed zmianą datasetu
+    if (config.value.selected_fields.length > 0) {
+      fieldsPerDataset.value[config.value.dataset] = [...config.value.selected_fields]
+    }
+
+    // Zmień dataset
     config.value.dataset = dataset.key
-    config.value.selected_fields = []
+
+    // Przywróć zapisane pola dla nowego datasetu lub pusta lista
+    config.value.selected_fields = fieldsPerDataset.value[dataset.key] || []
   }
 }
 
