@@ -3,10 +3,27 @@
   <div class="h-full flex gap-6">
     <!-- Left: Dataset + Search -->
     <div class="w-80 flex-shrink-0 flex flex-col gap-4">
-      <!-- Dataset as radio cards -->
+      <!-- Dataset selection - collapsible after selection -->
       <div>
         <label class="text-sm font-medium text-gray-700 mb-2 block">Typ danych</label>
-        <div class="space-y-2">
+
+        <!-- Selected dataset badge (shown after selection) -->
+        <div v-if="selectedDataset && !showDatasetSelector" class="flex items-center gap-3 p-3 rounded-lg border border-blue-500 bg-blue-50">
+          <div class="flex-1">
+            <div class="font-medium text-blue-900 text-sm">{{ getDatasetLabel(selectedDataset) }}</div>
+            <div class="text-xs text-blue-600">{{ getDatasetDescription(selectedDataset) }}</div>
+          </div>
+          <button
+            type="button"
+            class="text-xs px-2 py-1 text-blue-600 hover:bg-blue-100 rounded transition-colors"
+            @click="showChangeDatasetModal = true"
+          >
+            Zmien
+          </button>
+        </div>
+
+        <!-- Dataset options (hidden after selection) -->
+        <div v-else class="space-y-2">
           <label
             v-for="dataset in availableDatasets"
             :key="dataset.key"
@@ -103,10 +120,11 @@
             <label
               v-for="field in group.fields"
               :key="field.key"
-              class="flex items-center gap-3 px-4 py-2.5 hover:bg-gray-50 cursor-pointer border-b border-gray-100 last:border-b-0"
+              class="flex items-center gap-3 px-4 py-2.5 hover:bg-gray-50 cursor-pointer border-b border-gray-100 last:border-b-0 transition-all"
               :class="{
                 'opacity-50 cursor-not-allowed': field.locked,
-                'bg-blue-50': selectedFields.includes(field.key)
+                'bg-blue-50': selectedFields.includes(field.key) && !isFieldMatching(field),
+                'bg-yellow-100 ring-2 ring-yellow-400 ring-inset': isFieldMatching(field)
               }"
             >
               <input
@@ -116,34 +134,105 @@
                 class="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
                 @change="toggleField(field)"
               />
-              <span class="text-sm text-gray-700 flex-1" v-html="highlightMatch(field.label)"></span>
+              <span class="text-sm text-gray-700 flex-1">{{ field.label }}</span>
               <span v-if="field.locked" class="text-[10px] px-1.5 py-0.5 bg-amber-100 text-amber-700 rounded">PRO</span>
             </label>
           </div>
         </div>
       </div>
 
-      <!-- Selected fields reorder -->
+      <!-- Selected fields reorder - improved styling -->
       <div v-if="selectedFields.length > 0" class="mt-4 flex-shrink-0 pt-4 border-t border-gray-200">
-        <label class="text-xs font-medium text-gray-500 mb-2 block">Przeciagnij aby zmienic kolejnosc</label>
-        <div class="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto">
+        <label class="text-xs font-medium text-gray-500 mb-2 block">Kolejnosc kolumn w arkuszu</label>
+        <div class="flex flex-wrap gap-2 p-3 bg-gradient-to-r from-gray-50 to-gray-100 rounded-xl border border-gray-200 max-h-32 overflow-y-auto">
+          <template v-for="(fieldKey, index) in selectedFields" :key="fieldKey">
+            <!-- Drop indicator line before element -->
+            <div
+              v-if="dropTargetIndex === index"
+              class="w-0.5 h-8 bg-blue-500 rounded-full self-center animate-pulse"
+            ></div>
+            <div
+              class="flex items-center gap-2 pl-3 pr-2 py-1.5 bg-white border border-gray-200 rounded-lg text-sm shadow-sm cursor-move hover:shadow-md hover:border-blue-300 transition-all"
+              :class="{ 'ring-2 ring-blue-500 border-blue-500': draggedIndex === index }"
+              draggable="true"
+              @dragstart="dragStart(index, $event)"
+              @dragend="dragEnd"
+              @dragover.prevent="handleDragOver(index)"
+              @dragleave="handleDragLeave"
+              @drop.stop="drop(index)"
+            >
+              <span class="text-xs text-gray-400 font-mono">{{ index + 1 }}</span>
+              <span class="text-gray-700 font-medium">{{ getFieldLabel(fieldKey) }}</span>
+              <button type="button" class="p-1 text-gray-400 hover:text-red-500 rounded hover:bg-red-50" @click="removeField(fieldKey)">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                </svg>
+              </button>
+            </div>
+          </template>
+          <!-- Drop indicator at end -->
           <div
-            v-for="(fieldKey, index) in selectedFields"
-            :key="fieldKey"
-            class="flex items-center gap-1 pl-2 pr-1 py-1 bg-blue-50 border border-blue-200 rounded text-xs cursor-move hover:bg-blue-100 transition-colors"
-            draggable="true"
-            @dragstart="dragStart(index, $event)"
-            @dragend="dragEnd"
-            @dragover.prevent
-            @drop.stop="drop(index)"
+            v-if="dropTargetIndex === selectedFields.length"
+            class="w-0.5 h-8 bg-blue-500 rounded-full self-center animate-pulse"
+          ></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal: Change dataset warning -->
+    <div v-if="showChangeDatasetModal" class="fixed inset-0 z-50 flex items-center justify-center">
+      <div class="absolute inset-0 bg-black/50" @click="showChangeDatasetModal = false"></div>
+      <div class="relative bg-white rounded-xl shadow-2xl p-6 max-w-md mx-4">
+        <h3 class="text-lg font-semibold text-gray-900 mb-2">Zmiana typu danych</h3>
+        <p class="text-gray-600 mb-4">
+          Jeden eksport = jeden typ danych.<br>
+          Zmiana typu usunie wybrane pola.
+        </p>
+        <p class="text-sm text-gray-500 mb-6">
+          Jesli potrzebujesz innego typu danych, utworz nowy eksport.
+        </p>
+
+        <!-- Dataset options in modal -->
+        <div class="space-y-2 mb-6 max-h-48 overflow-y-auto">
+          <label
+            v-for="dataset in availableDatasets"
+            :key="dataset.key"
+            class="flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-all"
+            :class="{
+              'border-blue-500 bg-blue-50': pendingDataset === dataset.key,
+              'border-gray-200 hover:border-gray-300': pendingDataset !== dataset.key && dataset.available,
+              'border-gray-100 bg-gray-50 opacity-50 cursor-not-allowed': !dataset.available
+            }"
           >
-            <span class="text-blue-700">{{ getFieldLabel(fieldKey) }}</span>
-            <button type="button" class="p-0.5 text-blue-400 hover:text-red-500" @click="removeField(fieldKey)">
-              <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
-              </svg>
-            </button>
-          </div>
+            <input
+              type="radio"
+              :value="dataset.key"
+              :checked="pendingDataset === dataset.key"
+              :disabled="!dataset.available"
+              class="w-4 h-4 text-blue-600"
+              @change="pendingDataset = dataset.key"
+            />
+            <div class="flex-1">
+              <div class="font-medium text-gray-900 text-sm">{{ dataset.label }}</div>
+            </div>
+          </label>
+        </div>
+
+        <div class="flex gap-3">
+          <button
+            type="button"
+            class="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
+            @click="showChangeDatasetModal = false"
+          >
+            Anuluj
+          </button>
+          <button
+            type="button"
+            class="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+            @click="confirmDatasetChange"
+          >
+            Zmien typ
+          </button>
         </div>
       </div>
     </div>
@@ -151,7 +240,7 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 
 const props = defineProps({
   availableDatasets: { type: Array, required: true },
@@ -165,6 +254,26 @@ const emit = defineEmits(['update:selectedDataset', 'update:selectedFields'])
 const searchQuery = ref('')
 const openGroups = ref(['Podstawowe', 'Dane klienta'])
 const draggedIndex = ref(null)
+const dropTargetIndex = ref(null)
+const showDatasetSelector = ref(!props.selectedDataset)
+const showChangeDatasetModal = ref(false)
+const pendingDataset = ref('')
+
+// Watch for search query changes - auto-open matching groups
+watch(searchQuery, (query) => {
+  if (query.trim()) {
+    // Open all groups that have matching fields
+    const matchingGroupNames = filteredFieldGroups.value.map(g => g.name)
+    openGroups.value = matchingGroupNames
+  }
+})
+
+// Watch for dataset selection to hide selector
+watch(() => props.selectedDataset, (newVal) => {
+  if (newVal) {
+    showDatasetSelector.value = false
+  }
+})
 
 // Group fields
 const fieldGroups = computed(() => {
@@ -214,6 +323,11 @@ const filteredFieldGroups = computed(() => {
     .filter(group => group.fields.length > 0)
 })
 
+function isFieldMatching(field) {
+  if (!searchQuery.value.trim()) return false
+  return field.label.toLowerCase().includes(searchQuery.value.toLowerCase())
+}
+
 function toggleGroup(name) {
   const index = openGroups.value.indexOf(name)
   if (index === -1) {
@@ -227,15 +341,29 @@ function getSelectedCountInGroup(group) {
   return group.fields.filter(f => props.selectedFields.includes(f.key)).length
 }
 
-function highlightMatch(text) {
-  if (!searchQuery.value.trim()) return text
-  const regex = new RegExp(`(${searchQuery.value})`, 'gi')
-  return text.replace(regex, '<mark class="bg-yellow-200 rounded px-0.5">$1</mark>')
+function getDatasetLabel(key) {
+  const dataset = props.availableDatasets.find(d => d.key === key)
+  return dataset?.label || key
+}
+
+function getDatasetDescription(key) {
+  const dataset = props.availableDatasets.find(d => d.key === key)
+  return dataset?.description || ''
 }
 
 function selectDataset(dataset) {
   if (!dataset.available) return
   emit('update:selectedDataset', dataset.key)
+  showDatasetSelector.value = false
+}
+
+function confirmDatasetChange() {
+  if (pendingDataset.value && pendingDataset.value !== props.selectedDataset) {
+    emit('update:selectedFields', [])
+    emit('update:selectedDataset', pendingDataset.value)
+  }
+  showChangeDatasetModal.value = false
+  pendingDataset.value = ''
 }
 
 function toggleField(field) {
@@ -268,6 +396,7 @@ function getFieldLabel(fieldKey) {
   return field?.label || fieldKey
 }
 
+// Drag & Drop with visual indicator
 function dragStart(index, event) {
   draggedIndex.value = index
   event.dataTransfer.effectAllowed = 'move'
@@ -275,14 +404,37 @@ function dragStart(index, event) {
 
 function dragEnd() {
   draggedIndex.value = null
+  dropTargetIndex.value = null
+}
+
+function handleDragOver(index) {
+  if (draggedIndex.value === null) return
+  // Show indicator before or after based on position
+  if (index !== draggedIndex.value) {
+    dropTargetIndex.value = index
+  }
+}
+
+function handleDragLeave() {
+  // Small delay to prevent flickering
+  setTimeout(() => {
+    if (dropTargetIndex.value !== null) {
+      // Keep it if we're still over a valid target
+    }
+  }, 50)
 }
 
 function drop(targetIndex) {
-  if (draggedIndex.value === null || draggedIndex.value === targetIndex) return
+  if (draggedIndex.value === null || draggedIndex.value === targetIndex) {
+    dropTargetIndex.value = null
+    return
+  }
   const fields = [...props.selectedFields]
   const [moved] = fields.splice(draggedIndex.value, 1)
-  fields.splice(targetIndex, 0, moved)
+  const insertAt = targetIndex > draggedIndex.value ? targetIndex - 1 : targetIndex
+  fields.splice(insertAt, 0, moved)
   emit('update:selectedFields', fields)
   draggedIndex.value = null
+  dropTargetIndex.value = null
 }
 </script>

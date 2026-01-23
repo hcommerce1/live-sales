@@ -1,9 +1,25 @@
 <template>
   <!-- Variant D: Side-by-Side Dual Panel (Available ↔ Selected) -->
   <div class="h-full flex flex-col">
-    <!-- Top: Dataset selection as tabs -->
+    <!-- Top: Dataset selection - collapsible after selection -->
     <div class="flex-shrink-0 mb-4">
-      <div class="flex items-center gap-2 p-1 bg-gray-100 rounded-xl w-fit">
+      <!-- Selected dataset badge (shown after selection) -->
+      <div v-if="selectedDataset && !showDatasetSelector" class="flex items-center gap-3">
+        <span class="text-sm text-gray-500">Typ danych:</span>
+        <div class="flex items-center gap-2 px-3 py-1.5 bg-blue-50 border border-blue-200 rounded-lg">
+          <span class="font-medium text-blue-900 text-sm">{{ getDatasetLabel(selectedDataset) }}</span>
+          <button
+            type="button"
+            class="text-xs text-blue-600 hover:text-blue-800 ml-1"
+            @click="showChangeDatasetModal = true"
+          >
+            (zmien)
+          </button>
+        </div>
+      </div>
+
+      <!-- Dataset tabs (hidden after selection) -->
+      <div v-else class="flex items-center gap-2 p-1 bg-gray-100 rounded-xl w-fit">
         <button
           v-for="dataset in availableDatasets"
           :key="dataset.key"
@@ -32,7 +48,7 @@
         <div class="p-3 bg-gray-50 border-b border-gray-200 flex-shrink-0">
           <div class="flex items-center justify-between mb-2">
             <h3 class="font-semibold text-gray-900">Dostepne pola</h3>
-            <span class="text-sm text-gray-500">{{ availableFields.length }} pol</span>
+            <span class="text-sm text-gray-500">{{ availableFieldsFiltered.length }} pol</span>
           </div>
           <div class="relative">
             <input
@@ -48,68 +64,32 @@
         </div>
         <div class="flex-1 overflow-y-auto p-2">
           <div
-            v-for="field in filteredAvailableFields"
+            v-for="field in availableFieldsFiltered"
             :key="field.key"
-            class="flex items-center justify-between p-2.5 rounded-lg hover:bg-gray-50 cursor-pointer group transition-colors"
-            :class="{ 'opacity-50': field.locked }"
+            class="flex items-center justify-between p-2.5 rounded-lg hover:bg-blue-50 cursor-pointer group transition-colors"
+            :class="{ 'opacity-50 cursor-not-allowed': field.locked }"
             @click="!field.locked && addField(field)"
           >
             <span class="text-sm text-gray-700">{{ field.label }}</span>
             <div class="flex items-center gap-2">
               <span v-if="field.locked" class="text-[10px] px-1.5 py-0.5 bg-amber-100 text-amber-700 rounded">PRO</span>
-              <button
+              <span
                 v-if="!field.locked"
-                type="button"
-                class="p-1.5 rounded-lg bg-blue-100 text-blue-600 opacity-0 group-hover:opacity-100 transition-opacity"
+                class="p-1.5 rounded-lg text-blue-600 opacity-0 group-hover:opacity-100 transition-opacity"
               >
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
                 </svg>
-              </button>
+              </span>
             </div>
           </div>
-          <div v-if="filteredAvailableFields.length === 0" class="text-center py-8 text-gray-400">
+          <div v-if="availableFieldsFiltered.length === 0" class="text-center py-8 text-gray-400">
             <svg class="w-12 h-12 mx-auto mb-2 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M12 12h.01"/>
             </svg>
             <p>Brak wynikow</p>
           </div>
         </div>
-        <div class="p-3 bg-gray-50 border-t border-gray-200 flex-shrink-0">
-          <button
-            type="button"
-            class="w-full py-2 text-sm font-medium text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-            @click="addAllVisible"
-          >
-            Dodaj wszystkie widoczne
-          </button>
-        </div>
-      </div>
-
-      <!-- Center: Transfer controls -->
-      <div class="flex flex-col items-center justify-center gap-2 flex-shrink-0">
-        <button
-          type="button"
-          class="p-2 rounded-lg bg-blue-100 text-blue-600 hover:bg-blue-200 transition-colors disabled:opacity-50"
-          :disabled="availableFields.length === 0"
-          @click="addAllVisible"
-          title="Dodaj wszystkie"
-        >
-          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 5l7 7-7 7M5 5l7 7-7 7"/>
-          </svg>
-        </button>
-        <button
-          type="button"
-          class="p-2 rounded-lg bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors disabled:opacity-50"
-          :disabled="selectedFields.length === 0"
-          @click="clearAll"
-          title="Usun wszystkie"
-        >
-          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 19l-7-7 7-7m8 14l-7-7 7-7"/>
-          </svg>
-        </button>
       </div>
 
       <!-- Right: Selected fields -->
@@ -126,31 +106,42 @@
           @dragover.prevent
           @drop="handleDropOnContainer"
         >
-          <div
-            v-for="(fieldKey, index) in selectedFields"
-            :key="fieldKey"
-            class="flex items-center gap-2 p-2.5 mb-1.5 rounded-lg bg-white border border-blue-200 cursor-move hover:border-blue-400 hover:shadow-sm transition-all group"
-            draggable="true"
-            @dragstart="dragStart(index, $event)"
-            @dragend="dragEnd"
-            @dragover.prevent
-            @drop.stop="drop(index)"
-          >
-            <svg class="w-4 h-4 text-gray-400 flex-shrink-0" fill="currentColor" viewBox="0 0 24 24">
-              <path d="M8 6a2 2 0 1 1-4 0 2 2 0 0 1 4 0zM8 12a2 2 0 1 1-4 0 2 2 0 0 1 4 0zM8 18a2 2 0 1 1-4 0 2 2 0 0 1 4 0zM14 6a2 2 0 1 1-4 0 2 2 0 0 1 4 0zM14 12a2 2 0 1 1-4 0 2 2 0 0 1 4 0zM14 18a2 2 0 1 1-4 0 2 2 0 0 1 4 0z"/>
-            </svg>
-            <span class="text-xs text-gray-400 font-mono w-5">{{ index + 1 }}.</span>
-            <span class="text-sm text-gray-700 flex-1">{{ getFieldLabel(fieldKey) }}</span>
-            <button
-              type="button"
-              class="p-1 rounded text-gray-400 hover:text-red-500 hover:bg-red-50 opacity-0 group-hover:opacity-100 transition-all"
-              @click="removeField(fieldKey)"
+          <template v-for="(fieldKey, index) in selectedFields" :key="fieldKey">
+            <!-- Drop indicator line -->
+            <div
+              v-if="dropTargetIndex === index"
+              class="h-0.5 bg-blue-500 rounded-full mx-2 my-1 animate-pulse"
+            ></div>
+            <div
+              class="flex items-center gap-2 p-2.5 mb-1.5 rounded-lg bg-white border border-blue-200 cursor-move hover:border-blue-400 hover:shadow-sm transition-all group"
+              :class="{ 'ring-2 ring-blue-500 border-blue-500': draggedIndex === index }"
+              draggable="true"
+              @dragstart="dragStart(index, $event)"
+              @dragend="dragEnd"
+              @dragover.prevent="handleDragOver(index)"
+              @drop.stop="drop(index)"
             >
-              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+              <svg class="w-4 h-4 text-gray-400 flex-shrink-0" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M8 6a2 2 0 1 1-4 0 2 2 0 0 1 4 0zM8 12a2 2 0 1 1-4 0 2 2 0 0 1 4 0zM8 18a2 2 0 1 1-4 0 2 2 0 0 1 4 0zM14 6a2 2 0 1 1-4 0 2 2 0 0 1 4 0zM14 12a2 2 0 1 1-4 0 2 2 0 0 1 4 0zM14 18a2 2 0 1 1-4 0 2 2 0 0 1 4 0z"/>
               </svg>
-            </button>
-          </div>
+              <span class="text-xs text-gray-400 font-mono w-5">{{ index + 1 }}.</span>
+              <span class="text-sm text-gray-700 flex-1">{{ getFieldLabel(fieldKey) }}</span>
+              <button
+                type="button"
+                class="p-1 rounded text-gray-400 hover:text-red-500 hover:bg-red-50 opacity-0 group-hover:opacity-100 transition-all"
+                @click="removeField(fieldKey)"
+              >
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                </svg>
+              </button>
+            </div>
+          </template>
+          <!-- Drop indicator at end -->
+          <div
+            v-if="dropTargetIndex === selectedFields.length"
+            class="h-0.5 bg-blue-500 rounded-full mx-2 my-1 animate-pulse"
+          ></div>
           <div v-if="selectedFields.length === 0" class="text-center py-12 text-blue-400">
             <svg class="w-16 h-16 mx-auto mb-3 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
@@ -159,13 +150,62 @@
             <p class="text-sm mt-1">Kliknij na pole po lewej aby je dodac</p>
           </div>
         </div>
-        <div v-if="selectedFields.length > 0" class="p-3 bg-blue-100/50 border-t border-blue-200 flex-shrink-0">
+      </div>
+    </div>
+
+    <!-- Modal: Change dataset warning -->
+    <div v-if="showChangeDatasetModal" class="fixed inset-0 z-50 flex items-center justify-center">
+      <div class="absolute inset-0 bg-black/50" @click="showChangeDatasetModal = false"></div>
+      <div class="relative bg-white rounded-xl shadow-2xl p-6 max-w-md mx-4">
+        <h3 class="text-lg font-semibold text-gray-900 mb-2">Zmiana typu danych</h3>
+        <p class="text-gray-600 mb-4">
+          Jeden eksport = jeden typ danych.<br>
+          Zmiana typu usunie wybrane pola.
+        </p>
+        <p class="text-sm text-gray-500 mb-6">
+          Jesli potrzebujesz innego typu danych, utworz nowy eksport.
+        </p>
+
+        <!-- Dataset options in modal -->
+        <div class="space-y-2 mb-6 max-h-48 overflow-y-auto">
+          <label
+            v-for="dataset in availableDatasets"
+            :key="dataset.key"
+            class="flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-all"
+            :class="{
+              'border-blue-500 bg-blue-50': pendingDataset === dataset.key,
+              'border-gray-200 hover:border-gray-300': pendingDataset !== dataset.key && dataset.available,
+              'border-gray-100 bg-gray-50 opacity-50 cursor-not-allowed': !dataset.available
+            }"
+          >
+            <input
+              type="radio"
+              :value="dataset.key"
+              :checked="pendingDataset === dataset.key"
+              :disabled="!dataset.available"
+              class="w-4 h-4 text-blue-600"
+              @change="pendingDataset = dataset.key"
+            />
+            <div class="flex-1">
+              <div class="font-medium text-gray-900 text-sm">{{ dataset.label }}</div>
+            </div>
+          </label>
+        </div>
+
+        <div class="flex gap-3">
           <button
             type="button"
-            class="w-full py-2 text-sm font-medium text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-            @click="clearAll"
+            class="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
+            @click="showChangeDatasetModal = false"
           >
-            Usun wszystkie
+            Anuluj
+          </button>
+          <button
+            type="button"
+            class="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+            @click="confirmDatasetChange"
+          >
+            Zmien typ
           </button>
         </div>
       </div>
@@ -174,7 +214,7 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 
 const props = defineProps({
   availableDatasets: { type: Array, required: true },
@@ -187,20 +227,43 @@ const emit = defineEmits(['update:selectedDataset', 'update:selectedFields'])
 
 const searchQuery = ref('')
 const draggedIndex = ref(null)
+const dropTargetIndex = ref(null)
+const showDatasetSelector = ref(!props.selectedDataset)
+const showChangeDatasetModal = ref(false)
+const pendingDataset = ref('')
 
-const availableFields = computed(() => {
-  return props.fields.filter(f => !props.selectedFields.includes(f.key))
+// Watch for dataset selection to hide selector
+watch(() => props.selectedDataset, (newVal) => {
+  if (newVal) {
+    showDatasetSelector.value = false
+  }
 })
 
-const filteredAvailableFields = computed(() => {
-  if (!searchQuery.value.trim()) return availableFields.value
+const availableFieldsFiltered = computed(() => {
+  const available = props.fields.filter(f => !props.selectedFields.includes(f.key))
+  if (!searchQuery.value.trim()) return available
   const query = searchQuery.value.toLowerCase()
-  return availableFields.value.filter(f => f.label.toLowerCase().includes(query))
+  return available.filter(f => f.label.toLowerCase().includes(query))
 })
+
+function getDatasetLabel(key) {
+  const dataset = props.availableDatasets.find(d => d.key === key)
+  return dataset?.label || key
+}
 
 function selectDataset(dataset) {
   if (!dataset.available) return
   emit('update:selectedDataset', dataset.key)
+  showDatasetSelector.value = false
+}
+
+function confirmDatasetChange() {
+  if (pendingDataset.value && pendingDataset.value !== props.selectedDataset) {
+    emit('update:selectedFields', [])
+    emit('update:selectedDataset', pendingDataset.value)
+  }
+  showChangeDatasetModal.value = false
+  pendingDataset.value = ''
 }
 
 function addField(field) {
@@ -212,22 +275,12 @@ function removeField(fieldKey) {
   emit('update:selectedFields', props.selectedFields.filter(f => f !== fieldKey))
 }
 
-function addAllVisible() {
-  const newFields = filteredAvailableFields.value
-    .filter(f => !f.locked)
-    .map(f => f.key)
-  emit('update:selectedFields', [...props.selectedFields, ...newFields])
-}
-
-function clearAll() {
-  emit('update:selectedFields', [])
-}
-
 function getFieldLabel(fieldKey) {
   const field = props.fields.find(f => f.key === fieldKey)
   return field?.label || fieldKey
 }
 
+// Drag & Drop with visual indicator
 function dragStart(index, event) {
   draggedIndex.value = index
   event.dataTransfer.effectAllowed = 'move'
@@ -235,15 +288,28 @@ function dragStart(index, event) {
 
 function dragEnd() {
   draggedIndex.value = null
+  dropTargetIndex.value = null
+}
+
+function handleDragOver(index) {
+  if (draggedIndex.value === null) return
+  if (index !== draggedIndex.value) {
+    dropTargetIndex.value = index
+  }
 }
 
 function drop(targetIndex) {
-  if (draggedIndex.value === null || draggedIndex.value === targetIndex) return
+  if (draggedIndex.value === null || draggedIndex.value === targetIndex) {
+    dropTargetIndex.value = null
+    return
+  }
   const fields = [...props.selectedFields]
   const [moved] = fields.splice(draggedIndex.value, 1)
-  fields.splice(targetIndex, 0, moved)
+  const insertAt = targetIndex > draggedIndex.value ? targetIndex - 1 : targetIndex
+  fields.splice(insertAt, 0, moved)
   emit('update:selectedFields', fields)
   draggedIndex.value = null
+  dropTargetIndex.value = null
 }
 
 function handleDropOnContainer() {
@@ -253,6 +319,7 @@ function handleDropOnContainer() {
     fields.push(moved)
     emit('update:selectedFields', fields)
     draggedIndex.value = null
+    dropTargetIndex.value = null
   }
 }
 </script>

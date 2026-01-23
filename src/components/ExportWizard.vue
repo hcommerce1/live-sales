@@ -284,7 +284,7 @@ const props = defineProps({
   }
 })
 
-const emit = defineEmits(['save', 'cancel'])
+const emit = defineEmits(['save', 'cancel', 'save-draft'])
 
 // State
 const currentStep = ref(0)
@@ -518,7 +518,25 @@ function prevStep() {
 }
 
 function cancelWizard() {
-  emit('cancel')
+  // If user has selected fields, save as draft
+  if (config.value.selected_fields.length > 0 && !props.exportId) {
+    const draftData = {
+      name: config.value.name || 'Szkic eksportu',
+      description: config.value.description,
+      dataset: config.value.dataset,
+      selectedFields: config.value.selected_fields,
+      filters: config.value.filters,
+      sheets: config.value.sheets_config?.map(sheet => ({
+        sheet_url: sheet.sheet_url,
+        write_mode: sheet.write_mode || 'replace'
+      })) || [],
+      scheduleMinutes: config.value.schedule_minutes,
+      status: 'draft'
+    }
+    emit('save-draft', draftData)
+  } else {
+    emit('cancel')
+  }
 }
 
 async function saveExport() {
