@@ -64,103 +64,33 @@
         <span class="ml-3 text-gray-500">Wczytywanie...</span>
       </div>
 
-      <!-- Step 1: Dataset & Fields - TWO COLUMN LAYOUT -->
-      <div v-else-if="currentStep === 0" class="h-full flex gap-6">
-        <!-- Left column: Dataset selection -->
-        <div class="w-72 flex-shrink-0 flex flex-col">
-          <label class="text-sm font-medium text-gray-700 mb-3">Typ danych</label>
-          <div class="flex-1 flex flex-col gap-2">
-            <button
-              v-for="dataset in availableDatasets"
-              :key="dataset.key"
-              type="button"
-              class="p-4 rounded-lg border text-left transition-all flex-1 flex flex-col justify-center"
-              :class="{
-                'border-blue-500 bg-blue-50 ring-2 ring-blue-200': config.dataset === dataset.key,
-                'border-gray-200 hover:border-gray-300 hover:bg-gray-50': config.dataset !== dataset.key && dataset.available,
-                'border-gray-100 bg-gray-50 opacity-50 cursor-not-allowed': !dataset.available
-              }"
-              :disabled="!dataset.available"
-              @click="selectDataset(dataset)"
-            >
-              <div class="font-semibold text-gray-900">{{ dataset.label }}</div>
-              <div class="text-sm text-gray-500 mt-1">{{ dataset.description }}</div>
-              <span
-                v-if="!dataset.available"
-                class="inline-block mt-2 text-xs px-2 py-0.5 bg-amber-100 text-amber-700 rounded font-medium w-fit"
-              >
-                {{ dataset.requiredPlan.toUpperCase() }}
-              </span>
-            </button>
-          </div>
+      <!-- Step 1: Dataset & Fields - A/B TEST VARIANTS -->
+      <div v-else-if="currentStep === 0" class="h-full flex flex-col">
+        <!-- Variant Switcher for A/B Testing -->
+        <div class="flex-shrink-0 mb-4 flex items-center justify-end gap-2">
+          <span class="text-xs text-gray-400">Test wariantu:</span>
+          <select
+            :value="activeVariant"
+            class="text-xs px-2 py-1 border border-gray-200 rounded-lg focus:border-blue-500 outline-none"
+            @change="setVariant($event.target.value)"
+          >
+            <option v-for="(variant, key) in step1Variants" :key="key" :value="key">
+              {{ key }}: {{ variant.name }}
+            </option>
+          </select>
         </div>
 
-        <!-- Right column: Fields selection - fills remaining space -->
-        <div v-if="config.dataset" class="flex-1 flex flex-col min-w-0">
-          <div class="flex items-center justify-between mb-3">
-            <label class="text-sm font-medium text-gray-700">Wybierz pola do eksportu</label>
-            <span class="text-sm text-blue-600 font-medium">{{ config.selected_fields.length }} wybrano</span>
-          </div>
-
-          <!-- Fields grid - scrollable if needed but takes full height -->
-          <div class="flex-1 border border-gray-200 rounded-lg bg-white overflow-y-auto">
-            <div class="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-0">
-              <label
-                v-for="field in currentDatasetFields"
-                :key="field.key"
-                class="flex items-center gap-3 px-4 py-3 hover:bg-gray-50 cursor-pointer border-b border-r border-gray-100"
-                :class="{
-                  'opacity-50 cursor-not-allowed': field.locked,
-                  'bg-blue-50': config.selected_fields.includes(field.key)
-                }"
-              >
-                <input
-                  type="checkbox"
-                  :checked="config.selected_fields.includes(field.key)"
-                  :disabled="field.locked"
-                  class="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                  @change="toggleField(field)"
-                />
-                <span class="text-sm text-gray-700 flex-1 truncate">{{ field.label }}</span>
-                <span v-if="field.locked" class="text-[10px] px-1.5 py-0.5 bg-amber-100 text-amber-700 rounded flex-shrink-0">PRO</span>
-              </label>
-            </div>
-          </div>
-
-          <!-- Selected fields order - compact -->
-          <div v-if="config.selected_fields.length > 0" class="mt-3 flex-shrink-0">
-            <label class="text-xs font-medium text-gray-500 mb-2 block">Kolejność kolumn (przeciągnij)</label>
-            <div
-              class="flex flex-wrap gap-1.5 p-2 bg-gray-100 rounded-lg border border-dashed border-gray-300"
-              @dragover.prevent
-              @drop="handleDropOnContainer"
-            >
-              <div
-                v-for="(fieldKey, index) in config.selected_fields"
-                :key="fieldKey"
-                class="flex items-center gap-1 pl-2 pr-1 py-1 bg-white border border-gray-200 rounded text-xs cursor-move hover:border-blue-400 hover:bg-blue-50 transition-colors"
-                draggable="true"
-                @dragstart="dragStart(index, $event)"
-                @dragend="dragEnd"
-                @dragover.prevent
-                @drop.stop="drop(index)"
-              >
-                <svg class="w-3 h-3 text-gray-400" fill="currentColor" viewBox="0 0 24 24">
-                  <path d="M8 6a2 2 0 1 1-4 0 2 2 0 0 1 4 0zM8 12a2 2 0 1 1-4 0 2 2 0 0 1 4 0zM8 18a2 2 0 1 1-4 0 2 2 0 0 1 4 0zM14 6a2 2 0 1 1-4 0 2 2 0 0 1 4 0zM14 12a2 2 0 1 1-4 0 2 2 0 0 1 4 0zM14 18a2 2 0 1 1-4 0 2 2 0 0 1 4 0z"/>
-                </svg>
-                <span class="text-gray-700">{{ getFieldLabel(fieldKey) }}</span>
-                <button
-                  type="button"
-                  class="p-0.5 text-gray-400 hover:text-red-500 rounded"
-                  @click="removeField(fieldKey)"
-                >
-                  <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
-                  </svg>
-                </button>
-              </div>
-            </div>
-          </div>
+        <!-- Dynamic Variant Component -->
+        <div class="flex-1 min-h-0">
+          <component
+            :is="currentVariantComponent"
+            :available-datasets="availableDatasets"
+            :fields="currentDatasetFields"
+            :selected-dataset="config.dataset"
+            :selected-fields="config.selected_fields"
+            @update:selected-dataset="handleDatasetChange"
+            @update:selected-fields="config.selected_fields = $event"
+          />
         </div>
       </div>
 
@@ -328,6 +258,21 @@ import { API } from '../api.js'
 import FilterBuilder from './FilterBuilder.vue'
 import SheetConfig from './SheetConfig.vue'
 
+// Step 1 Variants for A/B Testing
+import WizardStep1VariantA from './wizard/WizardStep1VariantA.vue'
+import WizardStep1VariantB from './wizard/WizardStep1VariantB.vue'
+import WizardStep1VariantC from './wizard/WizardStep1VariantC.vue'
+import WizardStep1VariantD from './wizard/WizardStep1VariantD.vue'
+import WizardStep1VariantE from './wizard/WizardStep1VariantE.vue'
+
+const step1Variants = {
+  A: { component: WizardStep1VariantA, name: 'Klasyczny (Baseline)' },
+  B: { component: WizardStep1VariantB, name: 'Karty z ikonami' },
+  C: { component: WizardStep1VariantC, name: 'Akordeony + Szukaj' },
+  D: { component: WizardStep1VariantD, name: 'Dual Panel' },
+  E: { component: WizardStep1VariantE, name: 'Minimalistyczny' }
+}
+
 const props = defineProps({
   exportId: {
     type: String,
@@ -348,6 +293,17 @@ const isLoading = ref(true)
 const draggedIndex = ref(null)
 const duplicateSheetWarning = ref(false)
 const fieldsPerDataset = ref({})  // Autozapis pól per dataset
+
+// A/B Testing: Step 1 Variant (A-E)
+const activeVariant = ref(localStorage.getItem('wizardStep1Variant') || 'A')
+
+// Save variant preference
+function setVariant(variant) {
+  activeVariant.value = variant
+  localStorage.setItem('wizardStep1Variant', variant)
+}
+
+const currentVariantComponent = computed(() => step1Variants[activeVariant.value]?.component || WizardStep1VariantA)
 
 // Field definitions from backend
 const fieldDefinitions = ref({
@@ -444,17 +400,22 @@ const canSave = computed(() => {
 // Methods
 function selectDataset(dataset) {
   if (!dataset.available) return
-  if (config.value.dataset !== dataset.key) {
+  handleDatasetChange(dataset.key)
+}
+
+// Handle dataset change from variant components
+function handleDatasetChange(datasetKey) {
+  if (config.value.dataset !== datasetKey) {
     // Zapisz obecne pola przed zmianą datasetu
     if (config.value.selected_fields.length > 0) {
       fieldsPerDataset.value[config.value.dataset] = [...config.value.selected_fields]
     }
 
     // Zmień dataset
-    config.value.dataset = dataset.key
+    config.value.dataset = datasetKey
 
     // Przywróć zapisane pola dla nowego datasetu lub pusta lista
-    config.value.selected_fields = fieldsPerDataset.value[dataset.key] || []
+    config.value.selected_fields = fieldsPerDataset.value[datasetKey] || []
   }
 }
 
