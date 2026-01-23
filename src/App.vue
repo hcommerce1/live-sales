@@ -138,13 +138,8 @@ const memberRoleLoading = ref(true) // MUSI być true na start - zapobiega flash
 
 // Computed
 const exportsList = computed(() => {
-    if (exportsListServer.value.length > 0) {
-        return exportsListServer.value
-    }
-    return MOCK_DATA.exportsList.map(exp => ({
-        ...exp,
-        uptime: (99.5 + Math.random() * 0.5).toFixed(1)
-    }))
+    // Return server data only - no more mock fallback
+    return exportsListServer.value
 })
 
 const activeExportsCount = computed(() => {
@@ -643,33 +638,43 @@ function loadExport(exportId) {
 async function handleWizardSave(exportConfig) {
     try {
         isLoading.value = true
+        console.log('=== WIZARD SAVE START ===')
 
         // Check if this is a NEW export (not editing existing one)
         const isNewExport = !wizardEditingExportId.value
+        console.log('isNewExport:', isNewExport, 'wizardEditingExportId:', wizardEditingExportId.value)
 
         // Transform wizard config to API format
         const apiConfig = {
             id: wizardEditingExportId.value || ('export-' + Date.now()),
             name: exportConfig.name,
+            description: exportConfig.description || '',
             dataset: exportConfig.dataset,
             selected_fields: exportConfig.selectedFields,
             filters: exportConfig.filters,
             schedule_minutes: exportConfig.scheduleMinutes,
             status: 'active',
-            // New: multiple sheets
             sheets: exportConfig.sheets.map(sheet => ({
                 sheet_url: sheet.sheet_url,
-                sheet_name: sheet.sheet_name || null,
-                write_mode: sheet.write_mode
+                write_mode: sheet.write_mode || 'replace'
             }))
         }
+        console.log('apiConfig prepared:', JSON.stringify(apiConfig, null, 2))
 
         // Save via API
-        await API.exports.save(apiConfig)
+        console.log('Calling API.exports.save...')
+        const saveResult = await API.exports.save(apiConfig)
+        console.log('Save result:', saveResult)
+
+        console.log('Calling loadExportsFromServer...')
         await loadExportsFromServer()
+        console.log('loadExportsFromServer completed')
 
         // If this is a NEW export, run it immediately to populate data
         if (isNewExport) {
+            console.log('=== AUTO-RUN: Starting first export run ===')
+            console.log('Export ID for run:', apiConfig.id)
+
             showToast(
                 'Zapisano',
                 'Eksport zapisany. Trwa pierwsze uruchomienie...',
@@ -677,14 +682,16 @@ async function handleWizardSave(exportConfig) {
             )
 
             try {
+                console.log('Calling API.exports.run with ID:', apiConfig.id)
                 const result = await API.exports.run(apiConfig.id)
+                console.log('=== AUTO-RUN SUCCESS ===', result)
                 showToast(
                     'Sukces',
                     `Eksport uruchomiony! Zapisano ${result?.recordsWritten || 0} rekordów do arkusza.`,
                     '<svg class="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>'
                 )
             } catch (runError) {
-                console.error('Failed to run export after save:', runError)
+                console.error('=== AUTO-RUN FAILED ===', runError)
                 showToast(
                     'Uwaga',
                     'Eksport zapisany, ale pierwsze uruchomienie nie powiodło się: ' + runError.message,
@@ -692,6 +699,7 @@ async function handleWizardSave(exportConfig) {
                 )
             }
         } else {
+            console.log('=== EDITING EXISTING EXPORT - no auto-run ===')
             showToast(
                 'Zapisano',
                 'Eksport został zapisany pomyślnie',
@@ -700,10 +708,11 @@ async function handleWizardSave(exportConfig) {
         }
 
         // Return to exports list
+        console.log('=== WIZARD SAVE COMPLETE - returning to exports list ===')
         currentPage.value = 'exports'
         wizardEditingExportId.value = null
     } catch (error) {
-        console.error('Failed to save export from wizard:', error)
+        console.error('=== WIZARD SAVE FAILED ===', error)
         showToast(
             'Błąd',
             'Nie udało się zapisać eksportu: ' + error.message,
@@ -3006,14 +3015,14 @@ onBeforeUnmount(() => {
                 </div>
             </div>
 
-            <!-- EXPORT WIZARD (NEW) -->
-            <div v-if="currentPage === 'wizard'" class="p-4 md:p-8">
-                <ExportWizard
-                    :export-id="wizardEditingExportId"
-                    @save="handleWizardSave"
-                    @cancel="handleWizardCancel"
-                />
-            </div>
+            <!-- EXPORT WIZARD (NEW) - Modal overlay -->
+            <ExportWizard
+                v-if="currentPage === 'wizard'"
+                :export-id="wizardEditingExportId"
+                :existing-exports="exportsListServer"
+                @save="handleWizardSave"
+                @cancel="handleWizardCancel"
+            />
 
             <!-- KONFIGURATOR (LEGACY) -->
             <div v-if="currentPage === 'konfigurator'" class="flex flex-col min-h-screen">

@@ -263,8 +263,9 @@ class GoogleSheetsService {
 
       // Step 2: Get sheet name
       logger.info('[SHEETS WRITE] Step 2: Getting sheet name...');
-      try {
-        if (!sheetName) {
+      if (!sheetName) {
+        // Try to get sheet name from API first
+        try {
           if (gid) {
             logger.info(`[SHEETS WRITE] Getting sheet name by GID...`, { gid });
             sheetName = await this.getSheetNameByGid(sheetId, gid);
@@ -277,18 +278,24 @@ class GoogleSheetsService {
             sheetName = spreadsheet.data.sheets[0].properties.title;
             logger.info(`[SHEETS WRITE] Step 2 OK: Got first sheet name`, { sheetName });
           }
-        } else {
-          logger.info(`[SHEETS WRITE] Step 2 OK: Using provided sheet name`, { sheetName });
+        } catch (sheetNameError) {
+          // If we can't get sheet name from API, try common defaults
+          logger.warn('[SHEETS WRITE] Could not get sheet name from API, trying defaults', {
+            error: sheetNameError.message,
+            errorCode: sheetNameError.code
+          });
+
+          // For gid=0, the first sheet is usually 'Sheet1' or 'Arkusz1' (Polish)
+          // Try the most common default names
+          const defaultNames = gid === '0' || gid === 0 || !gid
+            ? ['Sheet1', 'Arkusz1', 'Лист1']
+            : ['Sheet1', 'Arkusz1'];
+
+          sheetName = defaultNames[0]; // Start with Sheet1
+          logger.info(`[SHEETS WRITE] Step 2: Using default sheet name`, { sheetName, gid });
         }
-      } catch (sheetNameError) {
-        logger.error('[SHEETS WRITE] Step 2 FAILED: Could not get sheet name', {
-          sheetId,
-          gid,
-          error: sheetNameError.message,
-          errorCode: sheetNameError.code,
-          errorStatus: sheetNameError.response?.status
-        });
-        throw sheetNameError;
+      } else {
+        logger.info(`[SHEETS WRITE] Step 2 OK: Using provided sheet name`, { sheetName });
       }
 
       // Step 3: Calculate required size
@@ -305,22 +312,21 @@ class GoogleSheetsService {
         range
       });
 
-      // Step 4: Ensure sheet has enough rows and columns
+      // Step 4: Ensure sheet has enough rows and columns (optional - don't fail if can't)
       logger.info('[SHEETS WRITE] Step 4: Ensuring sheet size...');
       try {
         await this.ensureSheetSize(sheetId, sheetName, requiredRows, requiredCols);
         logger.info('[SHEETS WRITE] Step 4 OK: Sheet size ensured');
       } catch (sizeError) {
-        logger.error('[SHEETS WRITE] Step 4 FAILED: Could not ensure sheet size', {
+        logger.warn('[SHEETS WRITE] Step 4: Could not ensure sheet size, will try to write anyway', {
           sheetId,
           sheetName,
           requiredRows,
           requiredCols,
           error: sizeError.message,
-          errorCode: sizeError.code,
-          errorResponse: JSON.stringify(sizeError.response?.data)
+          errorCode: sizeError.code
         });
-        throw sizeError;
+        // Don't throw - try to write anyway, Google Sheets might auto-expand
       }
 
       logger.info('[SHEETS WRITE] Step 5: Writing data...');
@@ -422,17 +428,27 @@ class GoogleSheetsService {
         };
       }
     } catch (error) {
+      // Extract HTTP status from Google API error
+      const httpStatus = error.response?.status || error.code;
+
       logger.error('[SHEETS WRITE] FAILED', {
         error: error.message,
         errorStack: error.stack,
         errorCode: error.code,
         errorName: error.name,
+        httpStatus,
         errorResponse: JSON.stringify(error.response?.data),
         errorStatus: error.response?.status,
         errorStatusText: error.response?.statusText,
         sheetUrl,
         fullError: JSON.stringify(error, Object.getOwnPropertyNames(error))
       });
+
+      // Ensure the error has a code for upstream error handling
+      if (!error.code && httpStatus) {
+        error.code = httpStatus;
+      }
+
       throw error;
     }
   }

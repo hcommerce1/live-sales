@@ -544,11 +544,26 @@ class ExportService {
           lastError = error;
 
           // Don't retry authorization errors
-          if (error.code === 403 || error.code === 401) {
+          if (error.code === 403 || error.code === 401 ||
+              error.message?.includes('403') || error.message?.includes('401') ||
+              error.message?.includes('permission') || error.message?.includes('access')) {
+            // Get actual service account email from config
+            const sheetsConfig = require('../config/googleSheets');
+            const serviceEmail = sheetsConfig.credentialsJson?.client_email ||
+                                 sheetsConfig.serviceAccountEmail ||
+                                 'live-sales-worker@livesales-483523.iam.gserviceaccount.com';
+
             logger.error('Google Sheets auth error - not retrying', {
               sheetUrl: sheet.sheet_url,
-              error: error.message
+              error: error.message,
+              serviceAccountEmail: serviceEmail,
+              hint: `Upewnij się że arkusz jest udostępniony dla: ${serviceEmail} z uprawnieniami Edytora`
             });
+            // Create more descriptive error
+            lastError = new Error(
+              `Brak dostępu do arkusza. Udostępnij arkusz dla: ${serviceEmail} (uprawnienia: Edytor)`
+            );
+            lastError.code = error.code || 403;
             break;
           }
 

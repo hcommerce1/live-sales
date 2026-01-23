@@ -1,94 +1,109 @@
 <template>
-  <div class="sheet-config">
+  <div class="space-y-4">
     <!-- Service account info -->
-    <div class="service-account-info">
-      <div class="info-icon">📋</div>
-      <div class="info-content">
-        <p><strong>Ważne:</strong> Udostępnij swój arkusz Google dla naszego konta serwisowego:</p>
-        <div class="email-copy">
-          <code>{{ serviceAccountEmail }}</code>
-          <button @click="copyEmail" class="copy-btn" :title="emailCopied ? 'Skopiowano!' : 'Kopiuj'">
-            {{ emailCopied ? '✓' : '📋' }}
-          </button>
-        </div>
-        <p class="info-note">Uprawnienia: Edytor (Editor)</p>
+    <div class="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+      <p class="text-sm text-blue-800 mb-2">
+        <strong>Ważne:</strong> Udostępnij arkusz dla konta serwisowego:
+      </p>
+      <div class="flex items-center gap-2 bg-white rounded px-3 py-2">
+        <code class="text-xs text-gray-700 flex-1 truncate">{{ serviceAccountEmail }}</code>
+        <button
+          type="button"
+          class="text-gray-400 hover:text-blue-600 transition-colors"
+          @click="copyEmail"
+          :title="emailCopied ? 'Skopiowano!' : 'Kopiuj'"
+        >
+          <svg v-if="!emailCopied" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/>
+          </svg>
+          <svg v-else class="w-4 h-4 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+          </svg>
+        </button>
       </div>
+      <p class="text-xs text-blue-600 mt-1">Uprawnienia: Edytor</p>
     </div>
 
     <!-- Sheets list -->
-    <div class="sheets-list">
+    <div class="space-y-3">
       <div
         v-for="(sheet, index) in sheets"
         :key="index"
-        class="sheet-item"
+        class="p-4 bg-gray-50 border border-gray-200 rounded-lg"
       >
-        <div class="sheet-header">
-          <span class="sheet-number">Arkusz {{ index + 1 }}</span>
+        <!-- Header -->
+        <div class="flex items-center justify-between mb-3">
+          <span class="text-sm font-medium text-gray-700">Arkusz {{ index + 1 }}</span>
           <button
             v-if="sheets.length > 1"
-            class="remove-sheet-btn"
+            type="button"
+            class="text-gray-400 hover:text-red-500 transition-colors"
             @click="removeSheet(index)"
-            title="Usuń arkusz"
+            title="Usuń"
           >
-            ×
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+            </svg>
           </button>
         </div>
 
-        <div class="sheet-fields">
-          <!-- Sheet URL -->
-          <div class="field-group">
-            <label>URL arkusza Google Sheets</label>
-            <div class="url-input-wrapper">
-              <input
-                v-model="sheet.sheet_url"
-                type="text"
-                placeholder="https://docs.google.com/spreadsheets/d/..."
-                class="url-input"
-                :class="{
-                  valid: sheet.urlStatus === 'valid',
-                  invalid: sheet.urlStatus === 'invalid'
-                }"
-                @input="validateUrl(sheet)"
-              />
-              <span v-if="sheet.urlStatus === 'valid'" class="url-status valid">✓</span>
-              <span v-if="sheet.urlStatus === 'invalid'" class="url-status invalid">✗</span>
-            </div>
-            <p v-if="sheet.extractedId" class="sheet-id">
-              ID: {{ sheet.extractedId }}
-              <span v-if="sheet.extractedGid"> | Zakładka: gid={{ sheet.extractedGid }}</span>
-            </p>
-            <p v-if="sheet.urlStatus === 'invalid'" class="error-text">
-              Nieprawidłowy URL arkusza Google Sheets
-            </p>
+        <!-- URL input -->
+        <div class="mb-3">
+          <label class="block text-xs font-medium text-gray-600 mb-1">URL arkusza</label>
+          <div class="relative">
+            <input
+              v-model="sheet.sheet_url"
+              type="text"
+              placeholder="https://docs.google.com/spreadsheets/d/..."
+              class="w-full px-3 py-2 pr-8 border rounded-lg text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
+              :class="{
+                'border-green-400 bg-green-50': sheet.urlStatus === 'valid',
+                'border-red-400 bg-red-50': sheet.urlStatus === 'invalid',
+                'border-gray-200': !sheet.urlStatus
+              }"
+              @input="validateUrl(sheet)"
+            />
+            <span v-if="sheet.urlStatus === 'valid'" class="absolute right-3 top-1/2 -translate-y-1/2 text-green-500">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+              </svg>
+            </span>
+            <span v-if="sheet.urlStatus === 'invalid'" class="absolute right-3 top-1/2 -translate-y-1/2 text-red-500">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+              </svg>
+            </span>
           </div>
+          <p v-if="sheet.extractedGid" class="text-xs text-gray-500 mt-1">
+            Zakładka: gid={{ sheet.extractedGid }}
+          </p>
+          <p v-if="sheet.urlStatus === 'invalid'" class="text-xs text-red-500 mt-1">
+            Nieprawidłowy URL arkusza
+          </p>
+        </div>
 
-          <!-- Write mode -->
-          <div class="field-group">
-            <label>Tryb zapisu</label>
-            <div class="write-mode-options">
-              <label class="radio-option">
-                <input
-                  type="radio"
-                  v-model="sheet.write_mode"
-                  value="append"
-                />
-                <span class="radio-label">
-                  <strong>Dopisuj</strong>
-                  <small>Nowe dane dodawane na końcu arkusza</small>
-                </span>
-              </label>
-              <label class="radio-option">
-                <input
-                  type="radio"
-                  v-model="sheet.write_mode"
-                  value="replace"
-                />
-                <span class="radio-label">
-                  <strong>Zastąp</strong>
-                  <small>Każdy eksport nadpisuje poprzednie dane</small>
-                </span>
-              </label>
-            </div>
+        <!-- Write mode -->
+        <div>
+          <label class="block text-xs font-medium text-gray-600 mb-2">Tryb zapisu</label>
+          <div class="flex gap-3">
+            <label class="flex items-center gap-2 cursor-pointer">
+              <input
+                type="radio"
+                v-model="sheet.write_mode"
+                value="replace"
+                class="w-4 h-4 text-blue-600"
+              />
+              <span class="text-sm text-gray-700">Zastąp</span>
+            </label>
+            <label class="flex items-center gap-2 cursor-pointer">
+              <input
+                type="radio"
+                v-model="sheet.write_mode"
+                value="append"
+                class="w-4 h-4 text-blue-600"
+              />
+              <span class="text-sm text-gray-700">Dopisuj</span>
+            </label>
           </div>
         </div>
       </div>
@@ -97,14 +112,15 @@
     <!-- Add sheet button -->
     <button
       v-if="sheets.length < maxSheets"
-      class="add-sheet-btn"
+      type="button"
+      class="w-full py-2 border border-dashed border-gray-300 rounded-lg text-sm text-gray-500 hover:border-gray-400 hover:text-gray-600 transition-colors"
       @click="addSheet"
     >
-      + Dodaj kolejny arkusz docelowy
+      + Dodaj arkusz
     </button>
 
-    <p v-if="sheets.length >= maxSheets" class="limit-notice">
-      Osiągnięto limit {{ maxSheets }} arkuszy docelowych dla Twojego planu.
+    <p v-if="sheets.length >= maxSheets" class="text-xs text-gray-400 text-center">
+      Limit {{ maxSheets }} arkuszy
     </p>
   </div>
 </template>
@@ -117,7 +133,7 @@ const props = defineProps({
     type: Array,
     default: () => [{
       sheet_url: '',
-      write_mode: 'append',
+      write_mode: 'replace',
       urlStatus: null,
       extractedId: null,
       extractedGid: null
@@ -125,7 +141,7 @@ const props = defineProps({
   },
   serviceAccountEmail: {
     type: String,
-    default: 'live-sales@live-sales-app.iam.gserviceaccount.com'
+    default: 'live-sales-worker@livesales-483523.iam.gserviceaccount.com'
   },
   maxSheets: {
     type: Number,
@@ -133,7 +149,7 @@ const props = defineProps({
   }
 })
 
-const emit = defineEmits(['update:modelValue'])
+const emit = defineEmits(['update:modelValue', 'url-change'])
 
 const emailCopied = ref(false)
 
@@ -158,6 +174,7 @@ function validateUrl(sheet) {
     sheet.urlStatus = null
     sheet.extractedId = null
     sheet.extractedGid = null
+    emit('url-change')
     return
   }
 
@@ -178,6 +195,8 @@ function validateUrl(sheet) {
     sheet.extractedId = null
     sheet.extractedGid = null
   }
+
+  emit('url-change')
 }
 
 // Add new sheet
@@ -186,7 +205,7 @@ function addSheet() {
     ...sheets.value,
     {
       sheet_url: '',
-      write_mode: 'append',
+      write_mode: 'replace',
       urlStatus: null,
       extractedId: null,
       extractedGid: null
@@ -199,6 +218,7 @@ function removeSheet(index) {
   const newSheets = [...sheets.value]
   newSheets.splice(index, 1)
   sheets.value = newSheets
+  emit('url-change')
 }
 
 // Initialize with default if empty
@@ -206,7 +226,7 @@ watch(() => props.modelValue, (newVal) => {
   if (!newVal || newVal.length === 0) {
     emit('update:modelValue', [{
       sheet_url: '',
-      write_mode: 'append',
+      write_mode: 'replace',
       urlStatus: null,
       extractedId: null,
       extractedGid: null
@@ -214,268 +234,3 @@ watch(() => props.modelValue, (newVal) => {
   }
 }, { immediate: true })
 </script>
-
-<style scoped>
-.sheet-config {
-  display: flex;
-  flex-direction: column;
-  gap: 1.5rem;
-}
-
-.service-account-info {
-  display: flex;
-  gap: 1rem;
-  padding: 1rem;
-  background: #eff6ff;
-  border: 1px solid #bfdbfe;
-  border-radius: 12px;
-}
-
-.info-icon {
-  font-size: 1.5rem;
-}
-
-.info-content {
-  flex: 1;
-}
-
-.info-content p {
-  margin: 0 0 0.5rem 0;
-  font-size: 0.9rem;
-  color: #1e40af;
-}
-
-.email-copy {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.5rem 0.75rem;
-  background: white;
-  border-radius: 6px;
-  margin: 0.5rem 0;
-}
-
-.email-copy code {
-  font-size: 0.85rem;
-  color: #374151;
-}
-
-.copy-btn {
-  background: none;
-  border: none;
-  cursor: pointer;
-  font-size: 1rem;
-  padding: 0.25rem;
-  opacity: 0.7;
-  transition: opacity 0.2s;
-}
-
-.copy-btn:hover {
-  opacity: 1;
-}
-
-.info-note {
-  font-size: 0.8rem;
-  color: #3b82f6;
-}
-
-.sheets-list {
-  display: flex;
-  flex-direction: column;
-  gap: 1.5rem;
-}
-
-.sheet-item {
-  background: #f9fafb;
-  border: 1px solid #e5e7eb;
-  border-radius: 12px;
-  padding: 1.25rem;
-}
-
-.sheet-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 1rem;
-  padding-bottom: 0.75rem;
-  border-bottom: 1px solid #e5e7eb;
-}
-
-.sheet-number {
-  font-weight: 600;
-  font-size: 0.95rem;
-  color: #374151;
-}
-
-.remove-sheet-btn {
-  background: none;
-  border: none;
-  color: #ef4444;
-  font-size: 1.5rem;
-  cursor: pointer;
-  padding: 0;
-  line-height: 1;
-  opacity: 0.6;
-  transition: opacity 0.2s;
-}
-
-.remove-sheet-btn:hover {
-  opacity: 1;
-}
-
-.sheet-fields {
-  display: flex;
-  flex-direction: column;
-  gap: 1.25rem;
-}
-
-.field-group {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
-
-.field-group label {
-  font-size: 0.85rem;
-  font-weight: 500;
-  color: #374151;
-}
-
-.optional {
-  font-weight: 400;
-  color: #9ca3af;
-}
-
-.url-input-wrapper {
-  position: relative;
-}
-
-.url-input {
-  width: 100%;
-  padding: 0.75rem 1rem;
-  padding-right: 2.5rem;
-  border: 1px solid #e5e7eb;
-  border-radius: 8px;
-  font-size: 0.9rem;
-  transition: all 0.2s;
-}
-
-.url-input:focus {
-  outline: none;
-  border-color: #6366f1;
-  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
-}
-
-.url-input.valid {
-  border-color: #10b981;
-}
-
-.url-input.invalid {
-  border-color: #ef4444;
-}
-
-.url-status {
-  position: absolute;
-  right: 0.75rem;
-  top: 50%;
-  transform: translateY(-50%);
-  font-size: 1.1rem;
-}
-
-.url-status.valid {
-  color: #10b981;
-}
-
-.url-status.invalid {
-  color: #ef4444;
-}
-
-.sheet-id {
-  font-size: 0.8rem;
-  color: #6b7280;
-  margin: 0;
-}
-
-.error-text {
-  font-size: 0.8rem;
-  color: #ef4444;
-  margin: 0;
-}
-
-.field-hint {
-  font-size: 0.8rem;
-  color: #9ca3af;
-  margin: 0;
-}
-
-.write-mode-options {
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-}
-
-.radio-option {
-  display: flex;
-  align-items: flex-start;
-  gap: 0.75rem;
-  padding: 0.75rem 1rem;
-  background: white;
-  border: 1px solid #e5e7eb;
-  border-radius: 8px;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.radio-option:hover {
-  border-color: #6366f1;
-}
-
-.radio-option input[type="radio"] {
-  margin-top: 0.25rem;
-}
-
-.radio-option input[type="radio"]:checked + .radio-label {
-  color: #4f46e5;
-}
-
-.radio-label {
-  display: flex;
-  flex-direction: column;
-  gap: 0.125rem;
-}
-
-.radio-label strong {
-  font-size: 0.9rem;
-}
-
-.radio-label small {
-  font-size: 0.8rem;
-  color: #6b7280;
-}
-
-.add-sheet-btn {
-  align-self: flex-start;
-  padding: 0.75rem 1.5rem;
-  background: #f3f4f6;
-  border: 1px dashed #d1d5db;
-  border-radius: 8px;
-  font-size: 0.9rem;
-  color: #374151;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.add-sheet-btn:hover {
-  border-color: #6366f1;
-  color: #6366f1;
-  background: #eef2ff;
-}
-
-.limit-notice {
-  font-size: 0.85rem;
-  color: #6b7280;
-  padding: 0.75rem;
-  background: #f3f4f6;
-  border-radius: 6px;
-}
-</style>

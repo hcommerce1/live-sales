@@ -1,282 +1,315 @@
 <template>
-  <div class="max-w-4xl mx-auto">
-    <!-- Header with progress -->
-    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6">
-      <div class="flex items-center justify-between mb-6">
-        <div>
-          <h1 class="text-2xl font-bold text-gray-900">
-            {{ props.exportId ? 'Edytuj eksport' : 'Nowy eksport' }}
-          </h1>
-          <p class="text-gray-500 mt-1">{{ steps[currentStep].description }}</p>
-        </div>
-        <span class="text-sm text-gray-400">Krok {{ currentStep + 1 }} z {{ steps.length }}</span>
-      </div>
+  <!-- Centered modal-like wizard -->
+  <div class="fixed inset-0 bg-gray-900/50 flex items-center justify-center p-4 z-50">
+    <div class="bg-white rounded-lg shadow-xl w-full max-w-2xl max-h-[85vh] flex flex-col">
 
-      <!-- Progress bar -->
-      <div class="flex items-center gap-2">
-        <template v-for="(step, index) in steps" :key="index">
-          <div
-            class="flex items-center gap-2 cursor-pointer"
-            @click="goToStep(index)"
-          >
-            <div
-              class="w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium transition-all"
-              :class="{
-                'bg-blue-600 text-white': currentStep === index,
-                'bg-green-500 text-white': currentStep > index,
-                'bg-gray-100 text-gray-500': currentStep < index
-              }"
-            >
-              <svg v-if="currentStep > index" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
-              </svg>
-              <span v-else>{{ index + 1 }}</span>
-            </div>
-            <span
-              class="text-sm font-medium hidden sm:inline"
-              :class="{
-                'text-blue-600': currentStep === index,
-                'text-green-600': currentStep > index,
-                'text-gray-400': currentStep < index
-              }"
-            >{{ step.label }}</span>
+      <!-- Header -->
+      <div class="px-6 py-4 border-b border-gray-200 flex-shrink-0">
+        <div class="flex items-center justify-between">
+          <div>
+            <h1 class="text-lg font-semibold text-gray-900">
+              {{ props.exportId ? 'Edytuj eksport' : 'Nowy eksport' }}
+            </h1>
+            <p class="text-sm text-gray-500">{{ steps[currentStep].description }}</p>
           </div>
-          <div
-            v-if="index < steps.length - 1"
-            class="flex-1 h-0.5 mx-2"
-            :class="currentStep > index ? 'bg-green-500' : 'bg-gray-200'"
-          />
-        </template>
-      </div>
-    </div>
-
-    <!-- Step content -->
-    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6">
-      <!-- Loading state -->
-      <div v-if="isLoading" class="flex items-center justify-center py-12">
-        <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-        <span class="ml-3 text-gray-500">Wczytywanie...</span>
-      </div>
-
-      <!-- Step 1: Dataset & Fields -->
-      <div v-else-if="currentStep === 0">
-        <h2 class="text-lg font-semibold text-gray-900 mb-4">Wybierz dane do eksportu</h2>
-
-        <!-- Dataset cards -->
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-6">
           <button
-            v-for="dataset in availableDatasets"
-            :key="dataset.key"
             type="button"
-            class="flex items-start gap-4 p-4 rounded-xl border-2 text-left transition-all"
-            :class="{
-              'border-blue-500 bg-blue-50': config.dataset === dataset.key,
-              'border-gray-200 hover:border-blue-300 bg-white': config.dataset !== dataset.key && dataset.available,
-              'border-gray-200 bg-gray-50 opacity-60 cursor-not-allowed': !dataset.available
-            }"
-            :disabled="!dataset.available"
-            @click="selectDataset(dataset)"
+            class="text-gray-400 hover:text-gray-600 p-1"
+            @click="cancelWizard"
           >
-            <div class="text-3xl">{{ dataset.icon }}</div>
-            <div class="flex-1">
-              <div class="font-semibold text-gray-900">{{ dataset.label }}</div>
-              <div class="text-sm text-gray-500 mt-0.5">{{ dataset.description }}</div>
-            </div>
-            <span
-              v-if="!dataset.available"
-              class="text-xs px-2 py-1 bg-amber-100 text-amber-700 rounded-full font-medium"
-            >
-              {{ dataset.requiredPlan.toUpperCase() }}
-            </span>
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+            </svg>
           </button>
         </div>
 
-        <!-- Fields selection -->
-        <div v-if="config.dataset">
-          <div class="flex items-center justify-between mb-3">
-            <h3 class="text-base font-medium text-gray-900">Wybierz pola</h3>
-            <span class="text-sm text-gray-500">
-              {{ config.selected_fields.length }} wybrano
-            </span>
+        <!-- Progress steps -->
+        <div class="flex items-center gap-1 mt-4">
+          <template v-for="(step, index) in steps" :key="index">
+            <button
+              type="button"
+              class="flex items-center gap-1.5 px-2 py-1 rounded text-xs font-medium transition-colors"
+              :class="{
+                'bg-blue-100 text-blue-700': currentStep === index,
+                'text-green-600': currentStep > index,
+                'text-gray-400': currentStep < index
+              }"
+              @click="goToStep(index)"
+            >
+              <span class="w-5 h-5 rounded-full flex items-center justify-center text-[10px] border"
+                :class="{
+                  'bg-blue-600 text-white border-blue-600': currentStep === index,
+                  'bg-green-500 text-white border-green-500': currentStep > index,
+                  'border-gray-300 text-gray-400': currentStep < index
+                }"
+              >
+                <svg v-if="currentStep > index" class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                </svg>
+                <span v-else>{{ index + 1 }}</span>
+              </span>
+              <span class="hidden sm:inline">{{ step.label }}</span>
+            </button>
+            <div v-if="index < steps.length - 1" class="w-4 h-px bg-gray-200"/>
+          </template>
+        </div>
+      </div>
+
+      <!-- Content - scrollable -->
+      <div class="flex-1 overflow-y-auto px-6 py-4">
+        <!-- Loading -->
+        <div v-if="isLoading" class="flex items-center justify-center py-12">
+          <div class="animate-spin rounded-full h-6 w-6 border-2 border-blue-600 border-t-transparent"></div>
+          <span class="ml-2 text-sm text-gray-500">Wczytywanie...</span>
+        </div>
+
+        <!-- Step 1: Dataset & Fields -->
+        <div v-else-if="currentStep === 0" class="space-y-5">
+          <!-- Dataset selection -->
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-2">Typ danych</label>
+            <div class="grid grid-cols-2 gap-2">
+              <button
+                v-for="dataset in availableDatasets"
+                :key="dataset.key"
+                type="button"
+                class="p-3 rounded-lg border text-left transition-all"
+                :class="{
+                  'border-blue-500 bg-blue-50': config.dataset === dataset.key,
+                  'border-gray-200 hover:border-gray-300': config.dataset !== dataset.key && dataset.available,
+                  'border-gray-100 bg-gray-50 opacity-50 cursor-not-allowed': !dataset.available
+                }"
+                :disabled="!dataset.available"
+                @click="selectDataset(dataset)"
+              >
+                <div class="font-medium text-gray-900 text-sm">{{ dataset.label }}</div>
+                <div class="text-xs text-gray-500 mt-0.5">{{ dataset.description }}</div>
+                <span
+                  v-if="!dataset.available"
+                  class="inline-block mt-1 text-[10px] px-1.5 py-0.5 bg-amber-100 text-amber-700 rounded font-medium"
+                >
+                  {{ dataset.requiredPlan.toUpperCase() }}
+                </span>
+              </button>
+            </div>
           </div>
 
-          <FieldSelector
-            v-model="config.selected_fields"
-            :fields="currentDatasetFields"
-            :locked-fields="currentDatasetLockedFields"
-          />
+          <!-- Fields selection -->
+          <div v-if="config.dataset">
+            <div class="flex items-center justify-between mb-2">
+              <label class="text-sm font-medium text-gray-700">Wybierz pola</label>
+              <span class="text-xs text-gray-500">{{ config.selected_fields.length }} wybrano</span>
+            </div>
 
-          <!-- Selected fields preview with drag -->
-          <div v-if="config.selected_fields.length > 0" class="mt-6">
-            <h4 class="text-sm font-medium text-gray-700 mb-2">
-              Kolejność kolumn (przeciągnij aby zmienić)
-            </h4>
-            <div class="flex flex-wrap gap-2 p-4 bg-gray-50 rounded-lg border border-gray-200">
-              <div
-                v-for="(fieldKey, index) in config.selected_fields"
-                :key="fieldKey"
-                class="flex items-center gap-1 px-3 py-1.5 bg-white border border-gray-200 rounded-lg text-sm cursor-move hover:border-blue-400 hover:bg-blue-50 transition-colors"
-                draggable="true"
-                @dragstart="dragStart(index)"
-                @dragover.prevent
-                @drop="drop(index)"
+            <!-- Available fields - simple list -->
+            <div class="border border-gray-200 rounded-lg max-h-48 overflow-y-auto">
+              <label
+                v-for="field in currentDatasetFields"
+                :key="field.key"
+                class="flex items-center gap-3 px-3 py-2 hover:bg-gray-50 cursor-pointer border-b border-gray-100 last:border-0"
+                :class="{ 'opacity-50': field.locked }"
               >
-                <svg class="w-3 h-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8h16M4 16h16"/>
-                </svg>
-                <span>{{ getFieldLabel(fieldKey) }}</span>
+                <input
+                  type="checkbox"
+                  :checked="config.selected_fields.includes(field.key)"
+                  :disabled="field.locked"
+                  class="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                  @change="toggleField(field)"
+                />
+                <span class="text-sm text-gray-700 flex-1">{{ field.label }}</span>
+                <span v-if="field.locked" class="text-[10px] px-1.5 py-0.5 bg-amber-100 text-amber-700 rounded">PRO</span>
+              </label>
+            </div>
+
+            <!-- Selected fields - draggable order -->
+            <div v-if="config.selected_fields.length > 0" class="mt-4">
+              <label class="text-xs font-medium text-gray-500 mb-2 block">
+                Kolejność kolumn (przeciągnij)
+              </label>
+              <div
+                class="flex flex-wrap gap-1.5 p-3 bg-gray-50 rounded-lg border border-dashed border-gray-300 min-h-[60px]"
+                @dragover.prevent
+                @drop="handleDropOnContainer"
+              >
+                <div
+                  v-for="(fieldKey, index) in config.selected_fields"
+                  :key="fieldKey"
+                  class="group flex items-center gap-1 pl-2 pr-1 py-1 bg-white border border-gray-200 rounded text-xs cursor-move hover:border-blue-400 transition-colors"
+                  draggable="true"
+                  @dragstart="dragStart(index, $event)"
+                  @dragend="dragEnd"
+                  @dragover.prevent
+                  @drop.stop="drop(index)"
+                >
+                  <svg class="w-3 h-3 text-gray-300" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M8 6a2 2 0 1 1-4 0 2 2 0 0 1 4 0zM8 12a2 2 0 1 1-4 0 2 2 0 0 1 4 0zM8 18a2 2 0 1 1-4 0 2 2 0 0 1 4 0zM14 6a2 2 0 1 1-4 0 2 2 0 0 1 4 0zM14 12a2 2 0 1 1-4 0 2 2 0 0 1 4 0zM14 18a2 2 0 1 1-4 0 2 2 0 0 1 4 0z"/>
+                  </svg>
+                  <span class="text-gray-700">{{ getFieldLabel(fieldKey) }}</span>
+                  <button
+                    type="button"
+                    class="ml-1 p-0.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded transition-colors"
+                    @click="removeField(fieldKey)"
+                  >
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                    </svg>
+                  </button>
+                </div>
+                <div v-if="config.selected_fields.length === 0" class="text-xs text-gray-400 w-full text-center py-2">
+                  Wybierz pola powyżej
+                </div>
               </div>
             </div>
           </div>
         </div>
-      </div>
 
-      <!-- Step 2: Filters -->
-      <div v-else-if="currentStep === 1">
-        <h2 class="text-lg font-semibold text-gray-900 mb-2">Filtrowanie danych</h2>
-        <p class="text-sm text-gray-500 mb-6">
-          Opcjonalne - ustaw warunki, aby eksportować tylko wybrane dane.
-        </p>
-
-        <FilterBuilder
-          v-model="config.filters"
-          :fields="currentDatasetFields"
-          :operators="fieldDefinitions.operators || []"
-          :order-statuses="orderStatuses"
-          :order-sources="orderSources"
-        />
-      </div>
-
-      <!-- Step 3: Target Sheets -->
-      <div v-else-if="currentStep === 2">
-        <h2 class="text-lg font-semibold text-gray-900 mb-2">Arkusze Google Sheets</h2>
-        <p class="text-sm text-gray-500 mb-6">
-          Podaj link do arkusza Google Sheets, do którego mają trafiać dane.
-        </p>
-
-        <SheetConfig
-          v-model="config.sheets_config"
-          :service-account-email="serviceAccountEmail"
-          :max-sheets="maxSheets"
-        />
-      </div>
-
-      <!-- Step 4: Summary -->
-      <div v-else-if="currentStep === 3">
-        <h2 class="text-lg font-semibold text-gray-900 mb-6">Podsumowanie</h2>
-
-        <!-- Export name -->
-        <div class="mb-6">
-          <label class="block text-sm font-medium text-gray-700 mb-2">
-            Nazwa eksportu
-          </label>
-          <input
-            v-model="config.name"
-            type="text"
-            placeholder="np. Zamówienia dzienne"
-            class="w-full px-4 py-3 border border-gray-200 rounded-lg focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-colors"
+        <!-- Step 2: Filters -->
+        <div v-else-if="currentStep === 1" class="space-y-4">
+          <p class="text-sm text-gray-500">
+            Opcjonalne - ustaw warunki filtrowania danych.
+          </p>
+          <FilterBuilder
+            v-model="config.filters"
+            :fields="currentDatasetFields"
+            :operators="fieldDefinitions.operators || []"
+            :order-statuses="orderStatuses"
+            :order-sources="orderSources"
           />
         </div>
 
-        <!-- Schedule -->
-        <div class="mb-6">
-          <label class="block text-sm font-medium text-gray-700 mb-2">
-            Częstotliwość aktualizacji
-          </label>
-          <div class="grid grid-cols-2 sm:grid-cols-5 gap-2">
-            <button
-              v-for="option in scheduleOptions"
-              :key="option.value"
-              type="button"
-              class="px-4 py-2.5 rounded-lg border text-sm font-medium transition-all"
-              :class="{
-                'border-blue-500 bg-blue-50 text-blue-700': config.schedule_minutes === option.value,
-                'border-gray-200 bg-white text-gray-700 hover:border-blue-300': config.schedule_minutes !== option.value
-              }"
-              @click="config.schedule_minutes = option.value"
-            >
-              {{ option.label }}
-            </button>
+        <!-- Step 3: Target Sheets -->
+        <div v-else-if="currentStep === 2" class="space-y-4">
+          <p class="text-sm text-gray-500">
+            Podaj link do arkusza Google Sheets.
+          </p>
+
+          <!-- Duplicate URL warning -->
+          <div v-if="duplicateSheetWarning" class="p-3 bg-amber-50 border border-amber-200 rounded-lg">
+            <p class="text-sm text-amber-800">
+              Ten arkusz jest już używany w innym eksporcie. Użyj innego arkusza.
+            </p>
           </div>
+
+          <SheetConfig
+            v-model="config.sheets_config"
+            :service-account-email="serviceAccountEmail"
+            :max-sheets="maxSheets"
+            @url-change="checkDuplicateUrl"
+          />
         </div>
 
-        <!-- Summary card -->
-        <div class="bg-gray-50 rounded-xl p-6 border border-gray-200">
-          <h3 class="text-sm font-semibold text-gray-900 uppercase tracking-wide mb-4">
-            Przegląd konfiguracji
-          </h3>
-          <div class="grid grid-cols-2 gap-4">
-            <div class="flex justify-between py-2 border-b border-gray-200">
-              <span class="text-gray-600">Dane:</span>
-              <span class="font-medium text-gray-900">{{ getDatasetLabel(config.dataset) }}</span>
+        <!-- Step 4: Summary -->
+        <div v-else-if="currentStep === 3" class="space-y-4">
+          <!-- Export name -->
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Nazwa eksportu</label>
+            <input
+              v-model="config.name"
+              type="text"
+              placeholder="np. Zamówienia dzienne"
+              class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
+            />
+          </div>
+
+          <!-- Export description -->
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Opis (opcjonalny)</label>
+            <textarea
+              v-model="config.description"
+              rows="2"
+              placeholder="Krótki opis eksportu..."
+              class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none resize-none"
+            />
+          </div>
+
+          <!-- Schedule -->
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-2">Częstotliwość</label>
+            <div class="flex flex-wrap gap-2">
+              <button
+                v-for="option in scheduleOptions"
+                :key="option.value"
+                type="button"
+                class="px-3 py-1.5 rounded border text-sm font-medium transition-all"
+                :class="{
+                  'border-blue-500 bg-blue-50 text-blue-700': config.schedule_minutes === option.value,
+                  'border-gray-200 text-gray-600 hover:border-gray-300': config.schedule_minutes !== option.value
+                }"
+                @click="config.schedule_minutes = option.value"
+              >
+                {{ option.label }}
+              </button>
             </div>
-            <div class="flex justify-between py-2 border-b border-gray-200">
-              <span class="text-gray-600">Pola:</span>
-              <span class="font-medium text-gray-900">{{ config.selected_fields.length }}</span>
-            </div>
-            <div class="flex justify-between py-2 border-b border-gray-200">
-              <span class="text-gray-600">Filtry:</span>
-              <span class="font-medium text-gray-900">{{ getFilterSummary() }}</span>
-            </div>
-            <div class="flex justify-between py-2 border-b border-gray-200">
-              <span class="text-gray-600">Arkusze:</span>
-              <span class="font-medium text-gray-900">{{ config.sheets_config?.length || 1 }}</span>
+          </div>
+
+          <!-- Summary -->
+          <div class="bg-gray-50 rounded-lg p-4 text-sm">
+            <div class="grid grid-cols-2 gap-2 text-gray-600">
+              <div>Typ danych:</div>
+              <div class="font-medium text-gray-900">{{ getDatasetLabel(config.dataset) }}</div>
+              <div>Pola:</div>
+              <div class="font-medium text-gray-900">{{ config.selected_fields.length }}</div>
+              <div>Filtry:</div>
+              <div class="font-medium text-gray-900">{{ getFilterSummary() }}</div>
+              <div>Arkusze:</div>
+              <div class="font-medium text-gray-900">{{ config.sheets_config?.length || 1 }}</div>
             </div>
           </div>
         </div>
       </div>
-    </div>
 
-    <!-- Navigation -->
-    <div class="flex items-center justify-between">
-      <button
-        type="button"
-        class="px-5 py-2.5 text-red-600 hover:text-red-700 font-medium transition-colors"
-        @click="cancelWizard"
-      >
-        Anuluj
-      </button>
+      <!-- Footer -->
+      <div class="px-6 py-4 border-t border-gray-200 flex-shrink-0">
+        <div class="flex items-center justify-between">
+          <button
+            type="button"
+            class="text-sm text-gray-500 hover:text-gray-700"
+            @click="cancelWizard"
+          >
+            Anuluj
+          </button>
 
-      <div class="flex items-center gap-3">
-        <button
-          v-if="currentStep > 0"
-          type="button"
-          class="px-5 py-2.5 bg-white border border-gray-200 text-gray-700 rounded-lg font-medium hover:bg-gray-50 transition-colors"
-          @click="prevStep"
-        >
-          Wstecz
-        </button>
-        <button
-          v-if="currentStep < steps.length - 1"
-          type="button"
-          class="px-6 py-2.5 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 disabled:bg-blue-300 disabled:cursor-not-allowed transition-colors"
-          :disabled="!canProceed"
-          @click="nextStep"
-        >
-          Dalej
-        </button>
-        <button
-          v-else
-          type="button"
-          class="px-6 py-2.5 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 disabled:bg-green-300 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
-          :disabled="!canSave || isSaving"
-          @click="saveExport"
-        >
-          <svg v-if="isSaving" class="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
-            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
-            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/>
-          </svg>
-          {{ isSaving ? 'Zapisuję...' : 'Zapisz eksport' }}
-        </button>
+          <div class="flex items-center gap-2">
+            <button
+              v-if="currentStep > 0"
+              type="button"
+              class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-200 rounded-lg hover:bg-gray-50"
+              @click="prevStep"
+            >
+              Wstecz
+            </button>
+            <button
+              v-if="currentStep < steps.length - 1"
+              type="button"
+              class="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:bg-blue-300 disabled:cursor-not-allowed"
+              :disabled="!canProceed"
+              @click="nextStep"
+            >
+              Dalej
+            </button>
+            <button
+              v-else
+              type="button"
+              class="px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-lg hover:bg-green-700 disabled:bg-green-300 disabled:cursor-not-allowed flex items-center gap-2"
+              :disabled="!canSave || isSaving || duplicateSheetWarning"
+              @click="saveExport"
+            >
+              <svg v-if="isSaving" class="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/>
+              </svg>
+              {{ isSaving ? 'Zapisuję...' : 'Zapisz' }}
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { API } from '../api.js'
-import FieldSelector from './FieldSelector.vue'
 import FilterBuilder from './FilterBuilder.vue'
 import SheetConfig from './SheetConfig.vue'
 
@@ -284,6 +317,10 @@ const props = defineProps({
   exportId: {
     type: String,
     default: null
+  },
+  existingExports: {
+    type: Array,
+    default: () => []
   }
 })
 
@@ -294,6 +331,7 @@ const currentStep = ref(0)
 const isSaving = ref(false)
 const isLoading = ref(true)
 const draggedIndex = ref(null)
+const duplicateSheetWarning = ref(false)
 
 // Field definitions from backend
 const fieldDefinitions = ref({
@@ -309,6 +347,7 @@ const orderSources = ref({})
 const config = ref({
   id: null,
   name: 'Nowy eksport',
+  description: '',
   dataset: 'orders',
   selected_fields: [],
   filters: {
@@ -317,19 +356,18 @@ const config = ref({
   },
   sheets_config: [{
     sheet_url: '',
-    sheet_name: '',
-    write_mode: 'append'
+    write_mode: 'replace'
   }],
   schedule_minutes: 15,
   status: 'active'
 })
 
-// Steps definition (4 steps now)
+// Steps definition
 const steps = [
-  { label: 'Dane', description: 'Wybierz dane i pola do eksportu' },
-  { label: 'Filtry', description: 'Ustaw warunki filtrowania (opcjonalne)' },
-  { label: 'Arkusz', description: 'Skonfiguruj arkusz Google Sheets' },
-  { label: 'Zapisz', description: 'Nazwij eksport i zapisz' }
+  { label: 'Dane', description: 'Wybierz typ danych i pola' },
+  { label: 'Filtry', description: 'Filtrowanie (opcjonalne)' },
+  { label: 'Arkusz', description: 'Konfiguracja arkusza' },
+  { label: 'Zapisz', description: 'Nazwa i zapis' }
 ]
 
 const scheduleOptions = [
@@ -340,21 +378,14 @@ const scheduleOptions = [
   { value: 1440, label: '24 godz' }
 ]
 
-const datasetIcons = {
-  orders: '📦',
-  products: '🏷️',
-  invoices: '📄',
-  order_products: '📋'
-}
-
 const datasetDescriptions = {
-  orders: 'Eksportuj dane zamówień',
-  products: 'Eksportuj produkty z magazynu',
-  invoices: 'Eksportuj faktury',
-  order_products: 'Produkty z zamówień (wiersz = produkt)'
+  orders: 'Zamówienia z BaseLinker',
+  products: 'Produkty z magazynu',
+  invoices: 'Faktury',
+  order_products: 'Produkty w zamówieniach'
 }
 
-const serviceAccountEmail = 'live-sales@live-sales-app.iam.gserviceaccount.com'
+const serviceAccountEmail = 'live-sales-worker@livesales-483523.iam.gserviceaccount.com'
 const maxSheets = 3
 
 // Computed
@@ -365,8 +396,7 @@ const availableDatasets = computed(() => {
     label: ds.label,
     available: !ds.locked,
     requiredPlan: ds.requiredPlan || 'basic',
-    icon: datasetIcons[key] || '📊',
-    description: datasetDescriptions[key] || ds.description || ''
+    description: datasetDescriptions[key] || ''
   }))
 })
 
@@ -375,33 +405,50 @@ const currentDatasetFields = computed(() => {
   return ds?.fields || []
 })
 
-const currentDatasetLockedFields = computed(() => {
-  return currentDatasetFields.value.filter(f => f.locked).map(f => f.key)
-})
-
 const canProceed = computed(() => {
   switch (currentStep.value) {
-    case 0: // Dataset & Fields
+    case 0:
       return config.value.dataset && config.value.selected_fields.length > 0
-    case 1: // Filters (always can proceed)
-      return true
-    case 2: // Sheets
-      const sheets = config.value.sheets_config || []
-      return sheets.length > 0 && sheets.every(s => s.sheet_url && s.sheet_url.includes('docs.google.com'))
+    case 1:
+      return true // Filters are optional
+    case 2:
+      return config.value.sheets_config?.some(s => s.sheet_url?.trim()) && !duplicateSheetWarning.value
     default:
       return true
   }
 })
 
 const canSave = computed(() => {
-  return config.value.name && config.value.name.trim() !== '' && canProceed.value
+  return config.value.name?.trim() &&
+         config.value.selected_fields.length > 0 &&
+         config.value.sheets_config?.some(s => s.sheet_url?.trim()) &&
+         !duplicateSheetWarning.value
 })
 
 // Methods
 function selectDataset(dataset) {
   if (!dataset.available) return
-  config.value.dataset = dataset.key
-  config.value.selected_fields = []
+  if (config.value.dataset !== dataset.key) {
+    config.value.dataset = dataset.key
+    config.value.selected_fields = []
+  }
+}
+
+function toggleField(field) {
+  if (field.locked) return
+  const index = config.value.selected_fields.indexOf(field.key)
+  if (index === -1) {
+    config.value.selected_fields.push(field.key)
+  } else {
+    config.value.selected_fields.splice(index, 1)
+  }
+}
+
+function removeField(fieldKey) {
+  const index = config.value.selected_fields.indexOf(fieldKey)
+  if (index !== -1) {
+    config.value.selected_fields.splice(index, 1)
+  }
 }
 
 function getFieldLabel(fieldKey) {
@@ -416,41 +463,67 @@ function getDatasetLabel(datasetKey) {
 
 function getFilterSummary() {
   const groups = config.value.filters?.groups || []
-  const validConditions = groups.flatMap(g => g.conditions || [])
-    .filter(c => c.field && c.operator)
-  return validConditions.length > 0 ? `${validConditions.length} warunek(ów)` : 'Brak'
+  const conditionCount = groups.reduce((acc, g) => {
+    const validConditions = g.conditions?.filter(c => c.field && c.operator) || []
+    return acc + validConditions.length
+  }, 0)
+  return conditionCount > 0 ? `${conditionCount} warunków` : 'Brak'
 }
 
-function getScheduleLabel(minutes) {
-  const option = scheduleOptions.find(o => o.value === minutes)
-  return option?.label || `${minutes} min`
-}
-
-// Drag & Drop for field ordering
-function dragStart(index) {
+// Drag & Drop
+function dragStart(index, event) {
   draggedIndex.value = index
+  event.dataTransfer.effectAllowed = 'move'
+}
+
+function dragEnd() {
+  draggedIndex.value = null
 }
 
 function drop(targetIndex) {
   if (draggedIndex.value === null || draggedIndex.value === targetIndex) return
-
   const fields = [...config.value.selected_fields]
-  const [removed] = fields.splice(draggedIndex.value, 1)
-  fields.splice(targetIndex, 0, removed)
+  const [moved] = fields.splice(draggedIndex.value, 1)
+  fields.splice(targetIndex, 0, moved)
   config.value.selected_fields = fields
   draggedIndex.value = null
 }
 
+function handleDropOnContainer() {
+  // Drop at end if dropped on container
+  if (draggedIndex.value !== null) {
+    const fields = [...config.value.selected_fields]
+    const [moved] = fields.splice(draggedIndex.value, 1)
+    fields.push(moved)
+    config.value.selected_fields = fields
+    draggedIndex.value = null
+  }
+}
+
+// URL validation
+function checkDuplicateUrl() {
+  const currentUrls = config.value.sheets_config
+    ?.map(s => s.sheet_url?.trim())
+    .filter(Boolean) || []
+
+  // Check against other exports
+  const otherUrls = props.existingExports
+    .filter(e => e.id !== config.value.id)
+    .flatMap(e => e.sheets?.map(s => s.sheet_url) || [])
+    .filter(Boolean)
+
+  duplicateSheetWarning.value = currentUrls.some(url => otherUrls.includes(url))
+}
+
 // Navigation
 function goToStep(index) {
-  // Only allow going to completed steps or current+1
-  if (index <= currentStep.value || (index === currentStep.value + 1 && canProceed.value)) {
+  if (index < currentStep.value) {
     currentStep.value = index
   }
 }
 
 function nextStep() {
-  if (currentStep.value < steps.length - 1 && canProceed.value) {
+  if (canProceed.value && currentStep.value < steps.length - 1) {
     currentStep.value++
   }
 }
@@ -473,13 +546,13 @@ async function saveExport() {
     const exportData = {
       id: config.value.id,
       name: config.value.name,
+      description: config.value.description,
       dataset: config.value.dataset,
       selectedFields: config.value.selected_fields,
       filters: config.value.filters,
       sheets: config.value.sheets_config?.map(sheet => ({
         sheet_url: sheet.sheet_url,
-        sheet_name: sheet.sheet_name || null,
-        write_mode: sheet.write_mode || 'append'
+        write_mode: sheet.write_mode || 'replace'
       })) || [],
       scheduleMinutes: config.value.schedule_minutes,
       status: config.value.status || 'active'
@@ -506,9 +579,7 @@ async function loadFieldDefinitions() {
 async function loadOrderStatuses() {
   try {
     const data = await API.baselinker.getOrderStatuses()
-    if (data) {
-      orderStatuses.value = data
-    }
+    orderStatuses.value = data || []
   } catch (error) {
     console.error('Failed to load order statuses:', error)
   }
@@ -517,53 +588,53 @@ async function loadOrderStatuses() {
 async function loadOrderSources() {
   try {
     const data = await API.baselinker.getOrderSources()
-    if (data) {
-      orderSources.value = data
-    }
+    orderSources.value = data || {}
   } catch (error) {
     console.error('Failed to load order sources:', error)
   }
 }
 
-async function loadExportForEditing(exportId) {
+async function loadExistingExport() {
+  if (!props.exportId) return
+
   try {
-    const exportData = await API.exports.get(exportId)
+    const exportData = await API.exports.get(props.exportId)
     if (exportData) {
       config.value = {
         id: exportData.id,
-        name: exportData.name,
-        dataset: exportData.dataset,
+        name: exportData.name || 'Nowy eksport',
+        description: exportData.description || '',
+        dataset: exportData.dataset || 'orders',
         selected_fields: exportData.selected_fields || [],
         filters: exportData.filters || {
           logic: 'AND',
           groups: [{ logic: 'AND', conditions: [{ field: '', operator: '', value: '' }] }]
         },
-        sheets_config: exportData.sheets?.length > 0 ? exportData.sheets : [{
-          sheet_url: exportData.sheets?.sheet_url || '',
-          sheet_name: '',
-          write_mode: exportData.sheets?.write_mode || 'append'
-        }],
+        sheets_config: exportData.sheets?.map(s => ({
+          sheet_url: s.sheet_url || '',
+          write_mode: s.write_mode || 'replace'
+        })) || [{ sheet_url: '', write_mode: 'replace' }],
         schedule_minutes: exportData.schedule_minutes || 15,
         status: exportData.status || 'active'
       }
     }
   } catch (error) {
-    console.error('Failed to load export for editing:', error)
+    console.error('Failed to load export:', error)
   }
 }
 
 // Initialize
 onMounted(async () => {
-  await Promise.all([
-    loadFieldDefinitions(),
-    loadOrderStatuses(),
-    loadOrderSources()
-  ])
-
-  if (props.exportId) {
-    await loadExportForEditing(props.exportId)
+  isLoading.value = true
+  try {
+    await Promise.all([
+      loadFieldDefinitions(),
+      loadOrderStatuses(),
+      loadOrderSources(),
+      loadExistingExport()
+    ])
+  } finally {
+    isLoading.value = false
   }
-
-  isLoading.value = false
 })
 </script>

@@ -90,6 +90,7 @@ export const API = {
    * @returns {Promise<object>} - Response data
    */
   async request(endpoint, options = {}) {
+    console.log('[API.request]', options.method || 'GET', endpoint);
     const url = `${API_BASE_URL}${endpoint}`;
 
     // Add authorization header if token exists
@@ -254,9 +255,11 @@ export const API = {
 
     // Run export immediately
     async run(id) {
+      console.log('[API.exports.run] Starting request for export ID:', id);
       const response = await API.request(`/api/exports/${id}/run`, {
         method: 'POST',
       });
+      console.log('[API.exports.run] Response received:', response);
       return response.result;
     },
 
