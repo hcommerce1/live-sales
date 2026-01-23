@@ -1,117 +1,118 @@
 <template>
-  <!-- Full-screen wizard (fills content area next to sidebar) -->
-  <div class="flex flex-col min-h-screen bg-gray-50">
+  <!-- Full-screen wizard - NO SCROLL, everything visible -->
+  <div class="h-screen flex flex-col bg-gray-50 overflow-hidden">
 
-    <!-- Sticky Header -->
-    <div class="bg-white border-b border-gray-200 sticky top-0 z-10">
-      <div class="max-w-4xl mx-auto px-4 md:px-6 py-4">
-        <div class="flex items-center justify-between">
-          <div>
-            <h1 class="text-xl font-semibold text-gray-900">
-              {{ props.exportId ? 'Edytuj eksport' : 'Nowy eksport' }}
-            </h1>
-            <p class="text-sm text-gray-500 mt-0.5">{{ steps[currentStep].description }}</p>
-          </div>
-          <button
-            type="button"
-            class="text-gray-400 hover:text-gray-600 p-2 hover:bg-gray-100 rounded-lg transition-colors"
-            @click="cancelWizard"
-            title="Zamknij"
-          >
-            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
-            </svg>
-          </button>
-        </div>
+    <!-- Compact Header -->
+    <div class="bg-white border-b border-gray-200 px-6 py-3 flex-shrink-0">
+      <div class="flex items-center justify-between">
+        <div class="flex items-center gap-6">
+          <h1 class="text-lg font-semibold text-gray-900">
+            {{ props.exportId ? 'Edytuj eksport' : 'Nowy eksport' }}
+          </h1>
 
-        <!-- Progress steps -->
-        <div class="flex items-center gap-2 mt-4">
-          <template v-for="(step, index) in steps" :key="index">
-            <button
-              type="button"
-              class="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-all"
-              :class="{
-                'bg-blue-100 text-blue-700': currentStep === index,
-                'text-green-600 hover:bg-green-50': currentStep > index,
-                'text-gray-400': currentStep < index
-              }"
-              :disabled="currentStep < index"
-              @click="goToStep(index)"
-            >
-              <span class="w-6 h-6 rounded-full flex items-center justify-center text-xs border-2"
+          <!-- Progress steps - inline -->
+          <div class="flex items-center gap-1">
+            <template v-for="(step, index) in steps" :key="index">
+              <button
+                type="button"
+                class="flex items-center gap-1.5 px-2.5 py-1 rounded text-sm font-medium transition-all"
                 :class="{
-                  'bg-blue-600 text-white border-blue-600': currentStep === index,
-                  'bg-green-500 text-white border-green-500': currentStep > index,
-                  'border-gray-300 text-gray-400': currentStep < index
+                  'bg-blue-100 text-blue-700': currentStep === index,
+                  'text-green-600 hover:bg-green-50': currentStep > index,
+                  'text-gray-400': currentStep < index
                 }"
+                :disabled="currentStep < index"
+                @click="goToStep(index)"
               >
-                <svg v-if="currentStep > index" class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
-                </svg>
-                <span v-else>{{ index + 1 }}</span>
-              </span>
-              <span class="hidden md:inline">{{ step.label }}</span>
-            </button>
-            <div v-if="index < steps.length - 1" class="w-8 h-0.5 bg-gray-200 hidden sm:block"/>
-          </template>
+                <span class="w-5 h-5 rounded-full flex items-center justify-center text-[10px] border-2"
+                  :class="{
+                    'bg-blue-600 text-white border-blue-600': currentStep === index,
+                    'bg-green-500 text-white border-green-500': currentStep > index,
+                    'border-gray-300 text-gray-400': currentStep < index
+                  }"
+                >
+                  <svg v-if="currentStep > index" class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                  </svg>
+                  <span v-else>{{ index + 1 }}</span>
+                </span>
+                <span class="hidden lg:inline">{{ step.label }}</span>
+              </button>
+              <div v-if="index < steps.length - 1" class="w-4 h-px bg-gray-300"/>
+            </template>
+          </div>
         </div>
+
+        <button
+          type="button"
+          class="text-gray-400 hover:text-gray-600 p-1.5 hover:bg-gray-100 rounded transition-colors"
+          @click="cancelWizard"
+          title="Zamknij"
+        >
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+          </svg>
+        </button>
       </div>
     </div>
 
-    <!-- Content - scrollable -->
-    <div class="flex-1 overflow-y-auto">
-      <div class="max-w-4xl mx-auto px-4 md:px-6 py-6">
-        <!-- Loading -->
-        <div v-if="isLoading" class="flex items-center justify-center py-12">
-          <div class="animate-spin rounded-full h-6 w-6 border-2 border-blue-600 border-t-transparent"></div>
-          <span class="ml-2 text-sm text-gray-500">Wczytywanie...</span>
+    <!-- Main Content - fills all available space -->
+    <div class="flex-1 p-6 overflow-hidden">
+      <!-- Loading -->
+      <div v-if="isLoading" class="h-full flex items-center justify-center">
+        <div class="animate-spin rounded-full h-8 w-8 border-2 border-blue-600 border-t-transparent"></div>
+        <span class="ml-3 text-gray-500">Wczytywanie...</span>
+      </div>
+
+      <!-- Step 1: Dataset & Fields - TWO COLUMN LAYOUT -->
+      <div v-else-if="currentStep === 0" class="h-full flex gap-6">
+        <!-- Left column: Dataset selection -->
+        <div class="w-72 flex-shrink-0 flex flex-col">
+          <label class="text-sm font-medium text-gray-700 mb-3">Typ danych</label>
+          <div class="flex-1 flex flex-col gap-2">
+            <button
+              v-for="dataset in availableDatasets"
+              :key="dataset.key"
+              type="button"
+              class="p-4 rounded-lg border text-left transition-all flex-1 flex flex-col justify-center"
+              :class="{
+                'border-blue-500 bg-blue-50 ring-2 ring-blue-200': config.dataset === dataset.key,
+                'border-gray-200 hover:border-gray-300 hover:bg-gray-50': config.dataset !== dataset.key && dataset.available,
+                'border-gray-100 bg-gray-50 opacity-50 cursor-not-allowed': !dataset.available
+              }"
+              :disabled="!dataset.available"
+              @click="selectDataset(dataset)"
+            >
+              <div class="font-semibold text-gray-900">{{ dataset.label }}</div>
+              <div class="text-sm text-gray-500 mt-1">{{ dataset.description }}</div>
+              <span
+                v-if="!dataset.available"
+                class="inline-block mt-2 text-xs px-2 py-0.5 bg-amber-100 text-amber-700 rounded font-medium w-fit"
+              >
+                {{ dataset.requiredPlan.toUpperCase() }}
+              </span>
+            </button>
+          </div>
         </div>
 
-        <!-- Step 1: Dataset & Fields -->
-        <div v-else-if="currentStep === 0" class="space-y-5">
-          <!-- Dataset selection -->
-          <div>
-            <label class="block text-sm font-medium text-gray-700 mb-2">Typ danych</label>
-            <div class="grid grid-cols-2 gap-2">
-              <button
-                v-for="dataset in availableDatasets"
-                :key="dataset.key"
-                type="button"
-                class="p-3 rounded-lg border text-left transition-all"
-                :class="{
-                  'border-blue-500 bg-blue-50': config.dataset === dataset.key,
-                  'border-gray-200 hover:border-gray-300': config.dataset !== dataset.key && dataset.available,
-                  'border-gray-100 bg-gray-50 opacity-50 cursor-not-allowed': !dataset.available
-                }"
-                :disabled="!dataset.available"
-                @click="selectDataset(dataset)"
-              >
-                <div class="font-medium text-gray-900 text-sm">{{ dataset.label }}</div>
-                <div class="text-xs text-gray-500 mt-0.5">{{ dataset.description }}</div>
-                <span
-                  v-if="!dataset.available"
-                  class="inline-block mt-1 text-[10px] px-1.5 py-0.5 bg-amber-100 text-amber-700 rounded font-medium"
-                >
-                  {{ dataset.requiredPlan.toUpperCase() }}
-                </span>
-              </button>
-            </div>
+        <!-- Right column: Fields selection - fills remaining space -->
+        <div v-if="config.dataset" class="flex-1 flex flex-col min-w-0">
+          <div class="flex items-center justify-between mb-3">
+            <label class="text-sm font-medium text-gray-700">Wybierz pola do eksportu</label>
+            <span class="text-sm text-blue-600 font-medium">{{ config.selected_fields.length }} wybrano</span>
           </div>
 
-          <!-- Fields selection -->
-          <div v-if="config.dataset">
-            <div class="flex items-center justify-between mb-2">
-              <label class="text-sm font-medium text-gray-700">Wybierz pola</label>
-              <span class="text-xs text-gray-500">{{ config.selected_fields.length }} wybrano</span>
-            </div>
-
-            <!-- Available fields - simple list -->
-            <div class="border border-gray-200 rounded-lg max-h-48 overflow-y-auto">
+          <!-- Fields grid - scrollable if needed but takes full height -->
+          <div class="flex-1 border border-gray-200 rounded-lg bg-white overflow-y-auto">
+            <div class="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-0">
               <label
                 v-for="field in currentDatasetFields"
                 :key="field.key"
-                class="flex items-center gap-3 px-3 py-2 hover:bg-gray-50 cursor-pointer border-b border-gray-100 last:border-0"
-                :class="{ 'opacity-50': field.locked }"
+                class="flex items-center gap-3 px-4 py-3 hover:bg-gray-50 cursor-pointer border-b border-r border-gray-100"
+                :class="{
+                  'opacity-50 cursor-not-allowed': field.locked,
+                  'bg-blue-50': config.selected_fields.includes(field.key)
+                }"
               >
                 <input
                   type="checkbox"
@@ -120,58 +121,55 @@
                   class="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
                   @change="toggleField(field)"
                 />
-                <span class="text-sm text-gray-700 flex-1">{{ field.label }}</span>
-                <span v-if="field.locked" class="text-[10px] px-1.5 py-0.5 bg-amber-100 text-amber-700 rounded">PRO</span>
+                <span class="text-sm text-gray-700 flex-1 truncate">{{ field.label }}</span>
+                <span v-if="field.locked" class="text-[10px] px-1.5 py-0.5 bg-amber-100 text-amber-700 rounded flex-shrink-0">PRO</span>
               </label>
             </div>
+          </div>
 
-            <!-- Selected fields - draggable order -->
-            <div v-if="config.selected_fields.length > 0" class="mt-4">
-              <label class="text-xs font-medium text-gray-500 mb-2 block">
-                Kolejność kolumn (przeciągnij)
-              </label>
+          <!-- Selected fields order - compact -->
+          <div v-if="config.selected_fields.length > 0" class="mt-3 flex-shrink-0">
+            <label class="text-xs font-medium text-gray-500 mb-2 block">Kolejność kolumn (przeciągnij)</label>
+            <div
+              class="flex flex-wrap gap-1.5 p-2 bg-gray-100 rounded-lg border border-dashed border-gray-300"
+              @dragover.prevent
+              @drop="handleDropOnContainer"
+            >
               <div
-                class="flex flex-wrap gap-1.5 p-3 bg-gray-50 rounded-lg border border-dashed border-gray-300 min-h-[60px]"
+                v-for="(fieldKey, index) in config.selected_fields"
+                :key="fieldKey"
+                class="flex items-center gap-1 pl-2 pr-1 py-1 bg-white border border-gray-200 rounded text-xs cursor-move hover:border-blue-400 hover:bg-blue-50 transition-colors"
+                draggable="true"
+                @dragstart="dragStart(index, $event)"
+                @dragend="dragEnd"
                 @dragover.prevent
-                @drop="handleDropOnContainer"
+                @drop.stop="drop(index)"
               >
-                <div
-                  v-for="(fieldKey, index) in config.selected_fields"
-                  :key="fieldKey"
-                  class="group flex items-center gap-1 pl-2 pr-1 py-1 bg-white border border-gray-200 rounded text-xs cursor-move hover:border-blue-400 transition-colors"
-                  draggable="true"
-                  @dragstart="dragStart(index, $event)"
-                  @dragend="dragEnd"
-                  @dragover.prevent
-                  @drop.stop="drop(index)"
+                <svg class="w-3 h-3 text-gray-400" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M8 6a2 2 0 1 1-4 0 2 2 0 0 1 4 0zM8 12a2 2 0 1 1-4 0 2 2 0 0 1 4 0zM8 18a2 2 0 1 1-4 0 2 2 0 0 1 4 0zM14 6a2 2 0 1 1-4 0 2 2 0 0 1 4 0zM14 12a2 2 0 1 1-4 0 2 2 0 0 1 4 0zM14 18a2 2 0 1 1-4 0 2 2 0 0 1 4 0z"/>
+                </svg>
+                <span class="text-gray-700">{{ getFieldLabel(fieldKey) }}</span>
+                <button
+                  type="button"
+                  class="p-0.5 text-gray-400 hover:text-red-500 rounded"
+                  @click="removeField(fieldKey)"
                 >
-                  <svg class="w-3 h-3 text-gray-300" fill="currentColor" viewBox="0 0 24 24">
-                    <path d="M8 6a2 2 0 1 1-4 0 2 2 0 0 1 4 0zM8 12a2 2 0 1 1-4 0 2 2 0 0 1 4 0zM8 18a2 2 0 1 1-4 0 2 2 0 0 1 4 0zM14 6a2 2 0 1 1-4 0 2 2 0 0 1 4 0zM14 12a2 2 0 1 1-4 0 2 2 0 0 1 4 0zM14 18a2 2 0 1 1-4 0 2 2 0 0 1 4 0z"/>
+                  <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
                   </svg>
-                  <span class="text-gray-700">{{ getFieldLabel(fieldKey) }}</span>
-                  <button
-                    type="button"
-                    class="ml-1 p-0.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded transition-colors"
-                    @click="removeField(fieldKey)"
-                  >
-                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
-                    </svg>
-                  </button>
-                </div>
-                <div v-if="config.selected_fields.length === 0" class="text-xs text-gray-400 w-full text-center py-2">
-                  Wybierz pola powyżej
-                </div>
+                </button>
               </div>
             </div>
           </div>
         </div>
+      </div>
 
-        <!-- Step 2: Filters -->
-        <div v-else-if="currentStep === 1" class="space-y-4">
-          <p class="text-sm text-gray-500">
-            Opcjonalne - ustaw warunki filtrowania danych.
-          </p>
+      <!-- Step 2: Filters -->
+      <div v-else-if="currentStep === 1" class="h-full flex flex-col">
+        <p class="text-sm text-gray-500 mb-4 flex-shrink-0">
+          Opcjonalne - ustaw warunki filtrowania danych.
+        </p>
+        <div class="flex-1 overflow-auto">
           <FilterBuilder
             v-model="config.filters"
             :fields="currentDatasetFields"
@@ -180,20 +178,22 @@
             :order-sources="orderSources"
           />
         </div>
+      </div>
 
-        <!-- Step 3: Target Sheets -->
-        <div v-else-if="currentStep === 2" class="space-y-4">
-          <p class="text-sm text-gray-500">
-            Podaj link do arkusza Google Sheets.
+      <!-- Step 3: Target Sheets -->
+      <div v-else-if="currentStep === 2" class="h-full flex flex-col">
+        <p class="text-sm text-gray-500 mb-4 flex-shrink-0">
+          Podaj link do arkusza Google Sheets.
+        </p>
+
+        <!-- Duplicate URL warning -->
+        <div v-if="duplicateSheetWarning" class="p-3 bg-amber-50 border border-amber-200 rounded-lg mb-4 flex-shrink-0">
+          <p class="text-sm text-amber-800">
+            Ten arkusz jest już używany w innym eksporcie. Użyj innego arkusza.
           </p>
+        </div>
 
-          <!-- Duplicate URL warning -->
-          <div v-if="duplicateSheetWarning" class="p-3 bg-amber-50 border border-amber-200 rounded-lg">
-            <p class="text-sm text-amber-800">
-              Ten arkusz jest już używany w innym eksporcie. Użyj innego arkusza.
-            </p>
-          </div>
-
+        <div class="flex-1">
           <SheetConfig
             v-model="config.sheets_config"
             :service-account-email="serviceAccountEmail"
@@ -201,112 +201,121 @@
             @url-change="checkDuplicateUrl"
           />
         </div>
+      </div>
 
-        <!-- Step 4: Summary -->
-        <div v-else-if="currentStep === 3" class="space-y-4">
-          <!-- Export name -->
-          <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">Nazwa eksportu</label>
-            <input
-              v-model="config.name"
-              type="text"
-              placeholder="np. Zamówienia dzienne"
-              class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
-            />
-          </div>
+      <!-- Step 4: Summary -->
+      <div v-else-if="currentStep === 3" class="h-full flex flex-col">
+        <div class="grid grid-cols-2 gap-6 flex-1">
+          <!-- Left: Form -->
+          <div class="flex flex-col gap-4">
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-2">Nazwa eksportu</label>
+              <input
+                v-model="config.name"
+                type="text"
+                placeholder="np. Zamówienia dzienne"
+                class="w-full px-4 py-3 border border-gray-200 rounded-lg text-base focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none"
+              />
+            </div>
 
-          <!-- Export description -->
-          <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">Opis (opcjonalny)</label>
-            <textarea
-              v-model="config.description"
-              rows="2"
-              placeholder="Krótki opis eksportu..."
-              class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none resize-none"
-            />
-          </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-2">Opis (opcjonalny)</label>
+              <textarea
+                v-model="config.description"
+                rows="3"
+                placeholder="Krótki opis eksportu..."
+                class="w-full px-4 py-3 border border-gray-200 rounded-lg text-base focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none resize-none"
+              />
+            </div>
 
-          <!-- Schedule -->
-          <div>
-            <label class="block text-sm font-medium text-gray-700 mb-2">Częstotliwość</label>
-            <div class="flex flex-wrap gap-2">
-              <button
-                v-for="option in scheduleOptions"
-                :key="option.value"
-                type="button"
-                class="px-3 py-1.5 rounded border text-sm font-medium transition-all"
-                :class="{
-                  'border-blue-500 bg-blue-50 text-blue-700': config.schedule_minutes === option.value,
-                  'border-gray-200 text-gray-600 hover:border-gray-300': config.schedule_minutes !== option.value
-                }"
-                @click="config.schedule_minutes = option.value"
-              >
-                {{ option.label }}
-              </button>
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-2">Częstotliwość</label>
+              <div class="flex flex-wrap gap-2">
+                <button
+                  v-for="option in scheduleOptions"
+                  :key="option.value"
+                  type="button"
+                  class="px-4 py-2 rounded-lg border text-sm font-medium transition-all"
+                  :class="{
+                    'border-blue-500 bg-blue-50 text-blue-700': config.schedule_minutes === option.value,
+                    'border-gray-200 text-gray-600 hover:border-gray-300 hover:bg-gray-50': config.schedule_minutes !== option.value
+                  }"
+                  @click="config.schedule_minutes = option.value"
+                >
+                  {{ option.label }}
+                </button>
+              </div>
             </div>
           </div>
 
-          <!-- Summary -->
-          <div class="bg-gray-50 rounded-lg p-4 text-sm">
-            <div class="grid grid-cols-2 gap-2 text-gray-600">
-              <div>Typ danych:</div>
-              <div class="font-medium text-gray-900">{{ getDatasetLabel(config.dataset) }}</div>
-              <div>Pola:</div>
-              <div class="font-medium text-gray-900">{{ config.selected_fields.length }}</div>
-              <div>Filtry:</div>
-              <div class="font-medium text-gray-900">{{ getFilterSummary() }}</div>
-              <div>Arkusze:</div>
-              <div class="font-medium text-gray-900">{{ config.sheets_config?.length || 1 }}</div>
+          <!-- Right: Summary -->
+          <div class="bg-white rounded-lg border border-gray-200 p-6">
+            <h3 class="text-sm font-semibold text-gray-900 mb-4">Podsumowanie konfiguracji</h3>
+            <div class="space-y-3">
+              <div class="flex justify-between py-2 border-b border-gray-100">
+                <span class="text-gray-600">Typ danych</span>
+                <span class="font-medium text-gray-900">{{ getDatasetLabel(config.dataset) }}</span>
+              </div>
+              <div class="flex justify-between py-2 border-b border-gray-100">
+                <span class="text-gray-600">Liczba pól</span>
+                <span class="font-medium text-gray-900">{{ config.selected_fields.length }}</span>
+              </div>
+              <div class="flex justify-between py-2 border-b border-gray-100">
+                <span class="text-gray-600">Filtry</span>
+                <span class="font-medium text-gray-900">{{ getFilterSummary() }}</span>
+              </div>
+              <div class="flex justify-between py-2">
+                <span class="text-gray-600">Arkusze docelowe</span>
+                <span class="font-medium text-gray-900">{{ config.sheets_config?.length || 1 }}</span>
+              </div>
             </div>
           </div>
         </div>
       </div>
     </div>
 
-    <!-- Sticky Footer -->
-    <div class="bg-white border-t border-gray-200 sticky bottom-0 z-10">
-      <div class="max-w-4xl mx-auto px-4 md:px-6 py-4">
-        <div class="flex items-center justify-between">
-          <button
-            type="button"
-            class="px-4 py-2 text-sm font-medium text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-colors"
-            @click="cancelWizard"
-          >
-            Anuluj
-          </button>
+    <!-- Compact Footer -->
+    <div class="bg-white border-t border-gray-200 px-6 py-3 flex-shrink-0">
+      <div class="flex items-center justify-between">
+        <button
+          type="button"
+          class="px-4 py-2 text-sm font-medium text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-colors"
+          @click="cancelWizard"
+        >
+          Anuluj
+        </button>
 
-          <div class="flex items-center gap-3">
-            <button
-              v-if="currentStep > 0"
-              type="button"
-              class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
-              @click="prevStep"
-            >
-              Wstecz
-            </button>
-            <button
-              v-if="currentStep < steps.length - 1"
-              type="button"
-              class="px-5 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:bg-blue-300 disabled:cursor-not-allowed transition-colors"
-              :disabled="!canProceed"
-              @click="nextStep"
-            >
-              Dalej
-            </button>
-            <button
-              v-else
-              type="button"
-              class="px-5 py-2 text-sm font-medium text-white bg-green-600 rounded-lg hover:bg-green-700 disabled:bg-green-300 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
-              :disabled="!canSave || isSaving || duplicateSheetWarning"
-              @click="saveExport"
-            >
-              <svg v-if="isSaving" class="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
-                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
-                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/>
-              </svg>
-              {{ isSaving ? 'Zapisuję...' : 'Zapisz' }}
-            </button>
-          </div>
+        <div class="flex items-center gap-3">
+          <button
+            v-if="currentStep > 0"
+            type="button"
+            class="px-5 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+            @click="prevStep"
+          >
+            Wstecz
+          </button>
+          <button
+            v-if="currentStep < steps.length - 1"
+            type="button"
+            class="px-6 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:bg-blue-300 disabled:cursor-not-allowed transition-colors"
+            :disabled="!canProceed"
+            @click="nextStep"
+          >
+            Dalej
+          </button>
+          <button
+            v-else
+            type="button"
+            class="px-6 py-2 text-sm font-medium text-white bg-green-600 rounded-lg hover:bg-green-700 disabled:bg-green-300 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
+            :disabled="!canSave || isSaving || duplicateSheetWarning"
+            @click="saveExport"
+          >
+            <svg v-if="isSaving" class="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
+              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/>
+            </svg>
+            {{ isSaving ? 'Zapisuję...' : 'Zapisz eksport' }}
+          </button>
         </div>
       </div>
     </div>
@@ -338,7 +347,7 @@ const isSaving = ref(false)
 const isLoading = ref(true)
 const draggedIndex = ref(null)
 const duplicateSheetWarning = ref(false)
-const fieldsPerDataset = ref({})  // Autozapis pól per dataset: { orders: [...], products: [...] }
+const fieldsPerDataset = ref({})  // Autozapis pól per dataset
 
 // Field definitions from backend
 const fieldDefinitions = ref({
@@ -505,7 +514,6 @@ function drop(targetIndex) {
 }
 
 function handleDropOnContainer() {
-  // Drop at end if dropped on container
   if (draggedIndex.value !== null) {
     const fields = [...config.value.selected_fields]
     const [moved] = fields.splice(draggedIndex.value, 1)
@@ -521,7 +529,6 @@ function checkDuplicateUrl() {
     ?.map(s => s.sheet_url?.trim())
     .filter(Boolean) || []
 
-  // Check against other exports
   const otherUrls = props.existingExports
     .filter(e => e.id !== config.value.id)
     .flatMap(e => e.sheets?.map(s => s.sheet_url) || [])
