@@ -729,6 +729,40 @@ function handleWizardCancel() {
     wizardEditingExportId.value = null
 }
 
+async function handleWizardSaveDraft(draftConfig) {
+    // Save as draft when user exits with some data selected
+    try {
+        const apiConfig = {
+            id: 'draft-' + Date.now(),
+            name: draftConfig.name || 'Szkic eksportu',
+            description: draftConfig.description || '',
+            dataset: draftConfig.dataset,
+            selected_fields: draftConfig.selectedFields || [],
+            filters: draftConfig.filters || { logic: 'AND', groups: [] },
+            schedule_minutes: draftConfig.scheduleMinutes || 15,
+            status: 'draft',
+            sheets: draftConfig.sheets?.map(sheet => ({
+                sheet_url: sheet.sheet_url || '',
+                write_mode: sheet.write_mode || 'replace'
+            })) || []
+        }
+
+        await API.exports.save(apiConfig)
+        await loadExportsFromServer()
+
+        showToast(
+            'Szkic zapisany',
+            'Eksport został zapisany jako szkic',
+            '<svg class="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>'
+        )
+    } catch (error) {
+        console.error('Failed to save draft:', error)
+    }
+
+    currentPage.value = 'exports'
+    wizardEditingExportId.value = null
+}
+
 function editExportInWizard(exportId) {
     // Open wizard for editing existing export
     wizardEditingExportId.value = exportId
@@ -3021,6 +3055,7 @@ onBeforeUnmount(() => {
                 :export-id="wizardEditingExportId"
                 :existing-exports="exportsListServer"
                 @save="handleWizardSave"
+                @save-draft="handleWizardSaveDraft"
                 @cancel="handleWizardCancel"
             />
 

@@ -488,18 +488,25 @@ function handleDropOnContainer() {
   }
 }
 
-// URL validation
+// Extract Google Sheets ID from URL for comparison
+function extractSheetId(url) {
+  if (!url) return null
+  const match = url.match(/\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/)
+  return match ? match[1] : null
+}
+
+// URL validation - check if sheet is already used in another export
 function checkDuplicateUrl() {
-  const currentUrls = config.value.sheets_config
-    ?.map(s => s.sheet_url?.trim())
+  const currentSheetIds = config.value.sheets_config
+    ?.map(s => extractSheetId(s.sheet_url))
     .filter(Boolean) || []
 
-  const otherUrls = props.existingExports
+  const otherSheetIds = props.existingExports
     .filter(e => e.id !== config.value.id)
-    .flatMap(e => e.sheets?.map(s => s.sheet_url) || [])
+    .flatMap(e => e.sheets?.map(s => extractSheetId(s.sheet_url)) || [])
     .filter(Boolean)
 
-  duplicateSheetWarning.value = currentUrls.some(url => otherUrls.includes(url))
+  duplicateSheetWarning.value = currentSheetIds.some(id => otherSheetIds.includes(id))
 }
 
 // Navigation
