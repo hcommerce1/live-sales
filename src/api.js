@@ -84,6 +84,50 @@ export const API = {
   },
 
   /**
+   * HTTP GET request helper
+   * @param {string} endpoint - API endpoint
+   * @returns {Promise<object>} - Response data
+   */
+  async get(endpoint) {
+    return this.request(endpoint, { method: 'GET' });
+  },
+
+  /**
+   * HTTP POST request helper
+   * @param {string} endpoint - API endpoint
+   * @param {object} data - Request body
+   * @returns {Promise<object>} - Response data
+   */
+  async post(endpoint, data = {}) {
+    return this.request(endpoint, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  /**
+   * HTTP PUT request helper
+   * @param {string} endpoint - API endpoint
+   * @param {object} data - Request body
+   * @returns {Promise<object>} - Response data
+   */
+  async put(endpoint, data = {}) {
+    return this.request(endpoint, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  },
+
+  /**
+   * HTTP DELETE request helper
+   * @param {string} endpoint - API endpoint
+   * @returns {Promise<object>} - Response data
+   */
+  async delete(endpoint) {
+    return this.request(endpoint, { method: 'DELETE' });
+  },
+
+  /**
    * Make API request with automatic token refresh
    * @param {string} endpoint - API endpoint
    * @param {object} options - Fetch options
