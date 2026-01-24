@@ -9,6 +9,12 @@ import emailjs from '@emailjs/browser'
 // Export Wizard components
 import ExportWizard from './components/ExportWizard.vue'
 
+// Settings components
+import SecuritySettings from './components/settings/SecuritySettings.vue'
+import TokenManager from './components/settings/TokenManager.vue'
+import NotificationSettings from './components/settings/NotificationSettings.vue'
+import OnboardingChecklist from './components/OnboardingChecklist.vue'
+
 // Initialize EmailJS
 emailjs.init("AJZSalcoaqOoF-Qxe")
 
@@ -1974,6 +1980,13 @@ onBeforeUnmount(() => {
                 <h1 class="text-2xl md:text-3xl font-bold mb-2">Dashboard</h1>
                 <p class="text-gray-600 mb-6 md:mb-8">Przegląd integracji i synchronizacji</p>
 
+                <!-- Onboarding Checklist -->
+                <OnboardingChecklist
+                    :api="API"
+                    @goToConfig="currentPage = 'config'"
+                    @goToExports="currentPage = 'exports'"
+                />
+
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6 mb-6 md:mb-8">
                     <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4 md:p-6">
                         <div class="flex items-center gap-3 mb-4">
@@ -2549,6 +2562,54 @@ onBeforeUnmount(() => {
                         </div>
                     </div>
 
+                    <!-- Token Manager Card -->
+                    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6">
+                        <div class="flex items-start gap-4 mb-6">
+                            <div class="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center flex-shrink-0">
+                                <svg class="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path>
+                                </svg>
+                            </div>
+                            <div class="flex-1">
+                                <h2 class="text-xl font-semibold mb-1">Zarządzanie tokenami</h2>
+                                <p class="text-sm text-gray-600">Dodaj wiele tokenów API dla różnych kont BaseLinker</p>
+                            </div>
+                        </div>
+                        <TokenManager :api="API" />
+                    </div>
+
+                    <!-- Security Settings Card -->
+                    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6">
+                        <div class="flex items-start gap-4 mb-6">
+                            <div class="w-12 h-12 bg-red-100 rounded-xl flex items-center justify-center flex-shrink-0">
+                                <svg class="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path>
+                                </svg>
+                            </div>
+                            <div class="flex-1">
+                                <h2 class="text-xl font-semibold mb-1">Bezpieczeństwo</h2>
+                                <p class="text-sm text-gray-600">Zmień hasło i włącz uwierzytelnianie dwuskładnikowe</p>
+                            </div>
+                        </div>
+                        <SecuritySettings :api="API" />
+                    </div>
+
+                    <!-- Notification Settings Card -->
+                    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6">
+                        <div class="flex items-start gap-4 mb-6">
+                            <div class="w-12 h-12 bg-yellow-100 rounded-xl flex items-center justify-center flex-shrink-0">
+                                <svg class="w-6 h-6 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"></path>
+                                </svg>
+                            </div>
+                            <div class="flex-1">
+                                <h2 class="text-xl font-semibold mb-1">Powiadomienia</h2>
+                                <p class="text-sm text-gray-600">Konfiguruj powiadomienia e-mail o błędach</p>
+                            </div>
+                        </div>
+                        <NotificationSettings :api="API" />
+                    </div>
+
                     <!-- Account Settings Card -->
                     <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
                         <div class="flex items-start gap-4 mb-6">
@@ -2559,7 +2620,7 @@ onBeforeUnmount(() => {
                             </div>
                             <div class="flex-1">
                                 <h2 class="text-xl font-semibold mb-1">Ustawienia konta</h2>
-                                <p class="text-sm text-gray-600">Zarządzaj swoim kontem i ustawieniami bezpieczeństwa</p>
+                                <p class="text-sm text-gray-600">Zarządzaj swoim kontem</p>
                             </div>
                         </div>
 
