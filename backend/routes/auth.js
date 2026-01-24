@@ -4,9 +4,58 @@ const passwordService = require('../utils/password');
 const authMiddleware = require('../middleware/auth');
 const { validate, registerSchema, loginSchema, refreshTokenSchema } = require('../validators/schemas');
 const logger = require('../utils/logger');
+const { doubleSubmitCsrf, clearCsrfCookie } = require('../middleware/csrf');
 
 const router = express.Router();
 const prisma = new PrismaClient();
+
+// Determine if we should use secure cookies
+// SECURITY: Not just NODE_ENV - also check for HTTPS indicators
+function isSecureContext(req) {
+  // Explicit production
+  if (process.env.NODE_ENV === 'production') return true;
+  // Explicit HTTPS enforcement
+  if (process.env.FORCE_HTTPS === 'true') return true;
+  // Behind reverse proxy with HTTPS (Render, Vercel, etc.)
+  if (req?.headers?.['x-forwarded-proto'] === 'https') return true;
+  // Explicit secure domain configured
+  if (process.env.SECURE_DOMAIN) return true;
+  return false;
+}
+
+// Cookie options for refresh token (SECURITY HARDENED)
+// Note: secure flag is set dynamically per request
+const getRefreshTokenCookieOptions = (req) => ({
+  httpOnly: true,           // XSS protection - JS cannot access
+  secure: isSecureContext(req), // HTTPS - dynamic check
+  sameSite: 'strict',       // CSRF protection (strict = not sent on cross-origin)
+  path: '/api/auth',        // Only sent to auth endpoints
+  maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days in milliseconds
+});
+
+/**
+ * Helper: Set refresh token as HttpOnly cookie
+ * @param {object} req - Express request (for secure context detection)
+ * @param {object} res - Express response
+ * @param {string} refreshToken - The refresh token to set
+ */
+function setRefreshTokenCookie(req, res, refreshToken) {
+  res.cookie('refreshToken', refreshToken, getRefreshTokenCookieOptions(req));
+}
+
+/**
+ * Helper: Clear refresh token cookie
+ * @param {object} req - Express request (for secure context detection)
+ * @param {object} res - Express response
+ */
+function clearRefreshTokenCookie(req, res) {
+  res.clearCookie('refreshToken', {
+    httpOnly: true,
+    secure: isSecureContext(req),
+    sameSite: 'strict',
+    path: '/api/auth',
+  });
+}
 
 /**
  * @route POST /api/auth/register
@@ -87,7 +136,11 @@ router.post('/register', validate(registerSchema), async (req, res) => {
       }
     });
 
-    // Return tokens
+    // Set refresh token as HttpOnly cookie (XSS protection)
+    setRefreshTokenCookie(req, res, refreshToken);
+
+    // Return access token in body (stored in memory by frontend)
+    // NOTE: refreshToken is NOT returned in body - it's in the HttpOnly cookie
     res.status(201).json({
       message: 'Registration successful',
       user: {
@@ -96,7 +149,7 @@ router.post('/register', validate(registerSchema), async (req, res) => {
         role: user.role,
       },
       accessToken,
-      refreshToken,
+      // refreshToken NOT included - security hardening
     });
   } catch (error) {
     logger.error('Registration failed', {
@@ -239,6 +292,11 @@ router.post('/login', validate(loginSchema), async (req, res) => {
       }
     });
 
+    // Set refresh token as HttpOnly cookie (XSS protection)
+    setRefreshTokenCookie(req, res, refreshToken);
+
+    // Return access token in body (stored in memory by frontend)
+    // NOTE: refreshToken is NOT returned in body - it's in the HttpOnly cookie
     res.json({
       message: 'Login successful',
       user: {
@@ -247,7 +305,7 @@ router.post('/login', validate(loginSchema), async (req, res) => {
         role: user.role,
       },
       accessToken,
-      refreshToken,
+      // refreshToken NOT included - security hardening
     });
   } catch (error) {
     logger.error('Login failed', {
@@ -266,11 +324,19 @@ router.post('/login', validate(loginSchema), async (req, res) => {
 /**
  * @route POST /api/auth/refresh
  * @desc Refresh access token
- * @access Public
+ * @access Public (uses HttpOnly cookie)
  */
-router.post('/refresh', validate(refreshTokenSchema), async (req, res) => {
+router.post('/refresh', doubleSubmitCsrf, async (req, res) => {
   try {
-    const { refreshToken } = req.body;
+    // Read refresh token from HttpOnly cookie (NOT from body)
+    const refreshToken = req.cookies?.refreshToken;
+
+    if (!refreshToken) {
+      return res.status(401).json({
+        error: 'No refresh token provided',
+        code: 'NO_REFRESH_TOKEN'
+      });
+    }
 
     // Verify refresh token
     const decoded = authMiddleware.verifyRefreshToken(refreshToken);
@@ -333,14 +399,26 @@ router.post('/refresh', validate(refreshTokenSchema), async (req, res) => {
       }
     });
 
+    // Set new refresh token as HttpOnly cookie (token rotation)
+    setRefreshTokenCookie(req, res, newRefreshToken);
+
     logger.info('Token refreshed', { userId: storedToken.user.id });
 
+    // Return only access token in body (refresh token is in cookie)
     res.json({
       accessToken: newAccessToken,
-      refreshToken: newRefreshToken,
+      user: {
+        id: storedToken.user.id,
+        email: storedToken.user.email,
+        role: storedToken.user.role,
+      },
+      // refreshToken NOT included - security hardening
     });
   } catch (error) {
     logger.error('Token refresh failed', { error: error.message });
+
+    // Clear cookie on refresh failure
+    clearRefreshTokenCookie(req, res);
 
     res.status(401).json({
       error: 'Token refresh failed',
@@ -351,45 +429,56 @@ router.post('/refresh', validate(refreshTokenSchema), async (req, res) => {
 
 /**
  * @route POST /api/auth/logout
- * @desc Logout user (revoke refresh token)
- * @access Private
+ * @desc Logout user (revoke refresh token and clear cookie)
+ * @access Public (can logout even with expired access token)
  */
-router.post('/logout', authMiddleware.authenticate(), async (req, res) => {
+router.post('/logout', doubleSubmitCsrf, async (req, res) => {
   try {
-    const { refreshToken } = req.body;
+    // Read refresh token from HttpOnly cookie
+    const refreshToken = req.cookies?.refreshToken;
 
     if (refreshToken) {
-      // Revoke refresh token
-      await prisma.refreshToken.updateMany({
-        where: {
-          token: refreshToken,
-          userId: req.user.id,
-        },
-        data: { revoked: true }
+      // Find and revoke the refresh token
+      const storedToken = await prisma.refreshToken.findUnique({
+        where: { token: refreshToken },
+        select: { id: true, userId: true }
       });
+
+      if (storedToken) {
+        // Revoke refresh token
+        await prisma.refreshToken.update({
+          where: { id: storedToken.id },
+          data: { revoked: true }
+        });
+
+        // Log logout
+        await prisma.auditLog.create({
+          data: {
+            userId: storedToken.userId,
+            action: 'LOGOUT',
+            ipAddress: req.ip,
+            userAgent: req.get('user-agent'),
+            success: true,
+          }
+        });
+
+        logger.info('User logged out', { userId: storedToken.userId });
+      }
     }
 
-    // Log logout
-    await prisma.auditLog.create({
-      data: {
-        userId: req.user.id,
-        action: 'LOGOUT',
-        ipAddress: req.ip,
-        userAgent: req.get('user-agent'),
-        success: true,
-      }
-    });
-
-    logger.info('User logged out', { userId: req.user.id });
+    // ALWAYS clear both cookies
+    clearRefreshTokenCookie(req, res);
+    clearCsrfCookie(req, res);
 
     res.json({
       message: 'Logout successful'
     });
   } catch (error) {
-    logger.error('Logout failed', {
-      error: error.message,
-      userId: req.user.id
-    });
+    logger.error('Logout failed', { error: error.message });
+
+    // Still clear cookies even on error
+    clearRefreshTokenCookie(req, res);
+    clearCsrfCookie(req, res);
 
     res.status(500).json({
       error: 'Logout failed',
@@ -400,13 +489,42 @@ router.post('/logout', authMiddleware.authenticate(), async (req, res) => {
 
 /**
  * @route GET /api/auth/me
- * @desc Get current user
- * @access Private
+ * @desc Get current user data
+ * @access Private - REQUIRES valid accessToken in Authorization header
+ *
+ * SECURITY: This endpoint NEVER returns tokens.
+ * Tokens are ONLY returned from /login and /refresh endpoints.
+ *
+ * FE Boot Flow:
+ * 1. Call POST /api/auth/refresh (uses HttpOnly cookie) → get accessToken
+ * 2. Call GET /api/auth/me with accessToken → get user data
  */
-router.get('/me', authMiddleware.authenticate(), async (req, res) => {
+router.get('/me', async (req, res) => {
   try {
+    // REQUIRE valid accessToken - no fallback to refresh token
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({
+        error: 'Access token required',
+        code: 'ACCESS_TOKEN_REQUIRED'
+      });
+    }
+
+    const token = authHeader.split(' ')[1];
+    let decoded;
+
+    try {
+      decoded = authMiddleware.verifyAccessToken(token);
+    } catch (e) {
+      return res.status(401).json({
+        error: 'Invalid or expired access token',
+        code: 'INVALID_ACCESS_TOKEN'
+      });
+    }
+
+    // Get full user data
     const user = await prisma.user.findUnique({
-      where: { id: req.user.id },
+      where: { id: decoded.userId },
       select: {
         id: true,
         email: true,
@@ -419,12 +537,30 @@ router.get('/me', authMiddleware.authenticate(), async (req, res) => {
       }
     });
 
+    if (!user) {
+      return res.status(404).json({
+        error: 'User not found',
+        code: 'USER_NOT_FOUND'
+      });
+    }
+
+    if (!user.isActive) {
+      return res.status(403).json({
+        error: 'Account deactivated',
+        code: 'ACCOUNT_DEACTIVATED'
+      });
+    }
+
+    // Update last activity timestamp
+    await prisma.user.update({
+      where: { id: decoded.userId },
+      data: { lastActivityAt: new Date() }
+    });
+
+    // Return ONLY user data - NEVER tokens
     res.json({ user });
   } catch (error) {
-    logger.error('Failed to get user', {
-      error: error.message,
-      userId: req.user.id
-    });
+    logger.error('Failed to get user', { error: error.message });
 
     res.status(500).json({
       error: 'Failed to get user',

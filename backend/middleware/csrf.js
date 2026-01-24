@@ -4,11 +4,19 @@
  * Implements CSRF protection for state-changing requests.
  * Required when using httpOnly cookies for refresh tokens.
  *
- * Flow:
- * 1. Login response includes csrfToken in body
- * 2. Frontend stores csrfToken in memory/sessionStorage
- * 3. Every state-changing request includes X-CSRF-Token header
- * 4. Backend validates token matches session
+ * TWO MODES:
+ *
+ * 1. Session-based (for authenticated users with Redis):
+ *    - Login response includes csrfToken in body
+ *    - Frontend stores csrfToken in memory/sessionStorage
+ *    - Every state-changing request includes X-CSRF-Token header
+ *    - Backend validates token matches Redis session
+ *
+ * 2. Double-submit cookie (for auth endpoints):
+ *    - Server sets csrf_token as non-HttpOnly cookie
+ *    - Client reads cookie and sends in X-CSRF-Token header
+ *    - Server verifies header matches cookie
+ *    - Works without Redis/session
  *
  * Feature flag: security.csrf.enabled
  */
@@ -16,6 +24,120 @@
 const crypto = require('crypto');
 const logger = require('../utils/logger');
 const featureFlags = require('../utils/feature-flags');
+
+// ============================================
+// DOUBLE-SUBMIT COOKIE MODE (for auth endpoints)
+// ============================================
+
+const CSRF_COOKIE_NAME = 'csrf_token';
+const CSRF_HEADER_NAME = 'x-csrf-token';
+const TOKEN_EXPIRY_MS = 60 * 60 * 1000; // 1 hour
+
+/**
+ * Check if secure context (HTTPS)
+ */
+function isSecureContext(req) {
+  if (process.env.NODE_ENV === 'production') return true;
+  if (process.env.FORCE_HTTPS === 'true') return true;
+  if (req?.headers?.['x-forwarded-proto'] === 'https') return true;
+  if (process.env.SECURE_DOMAIN) return true;
+  return false;
+}
+
+/**
+ * Get CSRF cookie options
+ * NOTE: NOT HttpOnly - client needs to read this to send in header
+ */
+function getCsrfCookieOptions(req) {
+  return {
+    httpOnly: false,           // Client needs to read this
+    secure: isSecureContext(req),
+    sameSite: 'strict',
+    path: '/',
+    maxAge: TOKEN_EXPIRY_MS,
+  };
+}
+
+/**
+ * Middleware: Double-submit cookie CSRF protection
+ * Use this for auth endpoints (refresh, logout, etc.)
+ *
+ * Sets csrf_token cookie if not present, verifies header on POST/PUT/DELETE
+ */
+function doubleSubmitCsrf(req, res, next) {
+  // Generate/read CSRF token
+  let csrfToken = req.cookies[CSRF_COOKIE_NAME];
+
+  if (!csrfToken) {
+    csrfToken = crypto.randomBytes(32).toString('hex');
+    res.cookie(CSRF_COOKIE_NAME, csrfToken, getCsrfCookieOptions(req));
+  }
+
+  // Add to request for convenience
+  req.csrfToken = csrfToken;
+  res.setHeader('X-CSRF-Token', csrfToken);
+
+  // Skip verification for safe methods
+  if (['GET', 'HEAD', 'OPTIONS'].includes(req.method)) {
+    return next();
+  }
+
+  // Verify header matches cookie
+  const headerToken = req.headers[CSRF_HEADER_NAME];
+
+  if (!headerToken) {
+    logger.warn('CSRF header missing (double-submit)', {
+      path: req.path,
+      method: req.method,
+      ip: req.ip,
+    });
+
+    return res.status(403).json({
+      error: 'CSRF token required in X-CSRF-Token header',
+      code: 'CSRF_TOKEN_REQUIRED',
+    });
+  }
+
+  // Timing-safe comparison
+  try {
+    const cookieBuffer = Buffer.from(csrfToken, 'utf8');
+    const headerBuffer = Buffer.from(headerToken, 'utf8');
+
+    if (cookieBuffer.length !== headerBuffer.length ||
+        !crypto.timingSafeEqual(cookieBuffer, headerBuffer)) {
+      throw new Error('Mismatch');
+    }
+  } catch (e) {
+    logger.warn('CSRF token mismatch (double-submit)', {
+      path: req.path,
+      method: req.method,
+      ip: req.ip,
+    });
+
+    return res.status(403).json({
+      error: 'CSRF token invalid',
+      code: 'CSRF_TOKEN_INVALID',
+    });
+  }
+
+  next();
+}
+
+/**
+ * Clear CSRF cookie (call on logout)
+ */
+function clearCsrfCookie(req, res) {
+  res.clearCookie(CSRF_COOKIE_NAME, {
+    httpOnly: false,
+    secure: isSecureContext(req),
+    sameSite: 'strict',
+    path: '/',
+  });
+}
+
+// ============================================
+// SESSION-BASED MODE (for authenticated users)
+// ============================================
 
 // Redis client for session storage (lazy load)
 let redis = null;
@@ -203,6 +325,13 @@ class CsrfError extends Error {
 }
 
 module.exports = {
+  // Double-submit cookie mode (for auth endpoints)
+  doubleSubmitCsrf,
+  clearCsrfCookie,
+  CSRF_COOKIE_NAME,
+  CSRF_HEADER_NAME,
+
+  // Session-based mode (for authenticated users)
   csrfProtection,
   generateCsrfToken,
   storeCsrfToken,

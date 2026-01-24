@@ -1,38 +1,53 @@
 // Frontend API Client for Live Sales Backend
+// SECURITY HARDENED: accessToken in memory only, refreshToken in HttpOnly cookie
+// CSRF: Double-submit cookie pattern for cookie-based auth endpoints
 
 const API_BASE_URL = window.location.origin;
 
+// In-memory token storage (XSS protection - never persisted)
+let _accessToken = null;
+
+/**
+ * Get CSRF token from cookie
+ * Used for double-submit cookie CSRF protection
+ */
+function getCsrfToken() {
+  const match = document.cookie.match(/csrf_token=([^;]+)/);
+  return match ? match[1] : null;
+}
+
 export const API = {
   /**
-   * Get access token from localStorage
+   * Get access token from memory (NOT localStorage)
+   * XSS protection: scripts cannot steal what's not in storage
    */
   getAccessToken() {
-    return localStorage.getItem('accessToken');
+    return _accessToken;
   },
 
   /**
-   * Get refresh token from localStorage
+   * Set access token in memory (NOT localStorage)
+   * refreshToken is in HttpOnly cookie - we don't touch it in JS!
    */
-  getRefreshToken() {
-    return localStorage.getItem('refreshToken');
+  setAccessToken(accessToken) {
+    _accessToken = accessToken;
   },
 
   /**
-   * Set tokens in localStorage
-   */
-  setTokens(accessToken, refreshToken) {
-    localStorage.setItem('accessToken', accessToken);
-    localStorage.setItem('refreshToken', refreshToken);
-  },
-
-  /**
-   * Clear tokens and user data
+   * Clear auth state (access token from memory)
+   * refreshToken cookie is cleared by backend on logout
    */
   clearAuth() {
-    localStorage.removeItem('accessToken');
-    localStorage.removeItem('refreshToken');
+    _accessToken = null;
     localStorage.removeItem('user');
     localStorage.removeItem('activeCompanyId');
+  },
+
+  /**
+   * Clear all auth state (called on logout)
+   */
+  clearAuthState() {
+    _accessToken = null;
   },
 
   /**
@@ -55,18 +70,14 @@ export const API = {
 
   /**
    * Refresh access token
+   * Uses HttpOnly cookie (sent automatically by browser)
    */
   async refreshAccessToken() {
-    const refreshToken = this.getRefreshToken();
-    if (!refreshToken) {
-      throw new Error('No refresh token available');
-    }
-
     try {
       const response = await fetch(`${API_BASE_URL}/api/auth/refresh`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ refreshToken })
+        credentials: 'include', // Include HttpOnly cookies
       });
 
       if (!response.ok) {
@@ -74,11 +85,12 @@ export const API = {
       }
 
       const data = await response.json();
-      this.setTokens(data.accessToken, data.refreshToken);
+      // Only accessToken comes in response - refreshToken is in HttpOnly cookie
+      this.setAccessToken(data.accessToken);
       return data.accessToken;
     } catch (error) {
       this.clearAuth();
-      window.location.href = '/login.html';
+      // Use router navigation instead of direct URL change (will be handled by Vue)
       throw error;
     }
   },
@@ -93,7 +105,7 @@ export const API = {
     console.log('[API.request]', options.method || 'GET', endpoint);
     const url = `${API_BASE_URL}${endpoint}`;
 
-    // Add authorization header if token exists
+    // Add authorization header if token exists (from memory)
     const token = this.getAccessToken();
     const headers = {
       'Content-Type': 'application/json',
@@ -104,8 +116,7 @@ export const API = {
       headers['Authorization'] = `Bearer ${token}`;
     }
 
-    // WARUNEK 1 (P0): Add X-Company-Id header for multi-company support
-    // Required for: /api/team/*, /api/billing/*, /api/features/*, /api/exports/*
+    // Add X-Company-Id header for multi-company support
     const companyId = this.getActiveCompanyId();
     if (companyId && !endpoint.startsWith('/api/auth/') && !endpoint.startsWith('/api/company/register') && !endpoint.startsWith('/api/company/lookup')) {
       headers['X-Company-Id'] = companyId;
@@ -113,6 +124,7 @@ export const API = {
 
     const config = {
       headers,
+      credentials: 'include', // Always include cookies for HttpOnly refresh token
       ...options,
     };
 
@@ -120,10 +132,10 @@ export const API = {
       const response = await fetch(url, config);
       const data = await response.json();
 
-      // If 401 and we have a refresh token, try to refresh
-      if (response.status === 401 && this.getRefreshToken()) {
+      // If 401, try to refresh using HttpOnly cookie
+      if (response.status === 401) {
         try {
-          // Refresh token
+          // Refresh token (uses HttpOnly cookie automatically)
           const newToken = await this.refreshAccessToken();
 
           // Retry original request with new token
@@ -137,9 +149,10 @@ export const API = {
 
           return retryData;
         } catch (refreshError) {
-          // Refresh failed, redirect to login
+          // Refresh failed - clear auth state
           this.clearAuth();
-          window.location.href = '/login.html';
+          // Dispatch event for Vue to handle redirect
+          window.dispatchEvent(new CustomEvent('auth:logout'));
           throw refreshError;
         }
       }
@@ -157,42 +170,68 @@ export const API = {
 
   /**
    * Authentication
+   * SECURITY: accessToken in memory, refreshToken in HttpOnly cookie
    */
   auth: {
     // Login
     async login(email, password) {
-      const response = await API.request('/api/auth/login', {
+      const response = await fetch(`${API_BASE_URL}/api/auth/login`, {
         method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include', // Important: receive HttpOnly cookie
         body: JSON.stringify({ email, password }),
       });
 
-      API.setTokens(response.accessToken, response.refreshToken);
-      localStorage.setItem('user', JSON.stringify(response.user));
+      const data = await response.json();
 
-      return response;
+      if (!response.ok) {
+        throw new Error(data.error || 'Login failed');
+      }
+
+      // Only accessToken in response - refreshToken is in HttpOnly cookie
+      API.setAccessToken(data.accessToken);
+      localStorage.setItem('user', JSON.stringify(data.user));
+
+      return data;
     },
 
     // Register
     async register(email, password) {
-      const response = await API.request('/api/auth/register', {
+      const response = await fetch(`${API_BASE_URL}/api/auth/register`, {
         method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include', // Important: receive HttpOnly cookie
         body: JSON.stringify({ email, password }),
       });
 
-      API.setTokens(response.accessToken, response.refreshToken);
-      localStorage.setItem('user', JSON.stringify(response.user));
+      const data = await response.json();
 
-      return response;
+      if (!response.ok) {
+        throw new Error(data.error || 'Registration failed');
+      }
+
+      // Only accessToken in response - refreshToken is in HttpOnly cookie
+      API.setAccessToken(data.accessToken);
+      localStorage.setItem('user', JSON.stringify(data.user));
+
+      return data;
     },
 
-    // Logout
+    // Logout (clears HttpOnly cookie on backend)
+    // CSRF: Must send X-CSRF-Token header
     async logout() {
-      const refreshToken = API.getRefreshToken();
-
       try {
-        await API.request('/api/auth/logout', {
+        const csrfToken = getCsrfToken();
+        const headers = { 'Content-Type': 'application/json' };
+
+        if (csrfToken) {
+          headers['X-CSRF-Token'] = csrfToken;
+        }
+
+        await fetch(`${API_BASE_URL}/api/auth/logout`, {
           method: 'POST',
-          body: JSON.stringify({ refreshToken }),
+          headers,
+          credentials: 'include', // Important: send HttpOnly cookie to be cleared
         });
       } catch (error) {
         console.error('Logout error:', error);
@@ -201,19 +240,103 @@ export const API = {
       }
     },
 
-    // Get current user
-    async getCurrentUser() {
-      const response = await API.request('/api/auth/me');
-      localStorage.setItem('user', JSON.stringify(response.user));
-      return response.user;
+    // Refresh token (uses HttpOnly cookie)
+    // CSRF: Must send X-CSRF-Token header
+    async refresh() {
+      const csrfToken = getCsrfToken();
+      const headers = { 'Content-Type': 'application/json' };
+
+      if (csrfToken) {
+        headers['X-CSRF-Token'] = csrfToken;
+      }
+
+      const response = await fetch(`${API_BASE_URL}/api/auth/refresh`, {
+        method: 'POST',
+        headers,
+        credentials: 'include', // Important: send HttpOnly cookie
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Token refresh failed');
+      }
+
+      // New accessToken in response - new refreshToken set as HttpOnly cookie
+      API.setAccessToken(data.accessToken);
+
+      return data;
     },
 
-    // Check if user is logged in
+    // Get current user data
+    // REQUIRES valid accessToken - use refresh() first if token expired
+    // SECURITY: This endpoint NEVER returns tokens - only user data
+    async getMe() {
+      const token = API.getAccessToken();
+
+      // REQUIRE accessToken - don't try to work without it
+      if (!token) {
+        throw new Error('Access token required - call refresh() first');
+      }
+
+      const response = await fetch(`${API_BASE_URL}/api/auth/me`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        credentials: 'include',
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to get user');
+      }
+
+      // Store user metadata (non-sensitive)
+      if (data.user) {
+        localStorage.setItem('user', JSON.stringify(data.user));
+      }
+
+      // NOTE: No accessToken in response - that comes from /refresh only
+      return data;
+    },
+
+    // Get current user (alias for backward compatibility)
+    async getCurrentUser() {
+      const data = await this.getMe();
+      return data.user;
+    },
+
+    // Verify 2FA code during login
+    async verify2FA(code, tempToken) {
+      const response = await fetch(`${API_BASE_URL}/api/auth/2fa/verify-login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ code, tempToken }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || '2FA verification failed');
+      }
+
+      // After successful 2FA, we get real tokens
+      API.setAccessToken(data.accessToken);
+      localStorage.setItem('user', JSON.stringify(data.user));
+
+      return data;
+    },
+
+    // Check if user is logged in (has access token in memory)
     isLoggedIn() {
       return !!API.getAccessToken();
     },
 
-    // Get stored user data
+    // Get stored user data (non-sensitive metadata from localStorage)
     getUser() {
       const userStr = localStorage.getItem('user');
       return userStr ? JSON.parse(userStr) : null;

@@ -56,49 +56,88 @@ if (process.env.NODE_ENV === 'production') {
   });
 }
 
-// Security Middleware
+// Security Middleware - HARDENED CSP
+// NOTE: For strict CSP without unsafe-inline, Vite needs to output external JS/CSS
+// or use nonces. Current config is a balance between security and compatibility.
 app.use(helmet({
   contentSecurityPolicy: {
     directives: {
       defaultSrc: ["'self'"],
-      // ⚠️ TEMPORARY: unsafe-eval + unsafe-inline needed for login.html
-      // login.html uses inline <script> with Vue CDN runtime compiler
-      // TODO: Migrate login.html to Vue SFC for strict CSP
-      // Main app (Vite) uses pre-compiled templates - NO runtime compilation
       scriptSrc: [
         "'self'",
-        "'unsafe-inline'", // Required for inline <script> in login.html
-        "'unsafe-eval'", // Required for Vue CDN runtime template compilation
-        "https://cdn.jsdelivr.net",
-        "https://cdn.tailwindcss.com"
+        // unsafe-inline still needed for Vite's dev mode and some runtime features
+        // TODO: Configure Vite to output external scripts for strict CSP in production
+        "'unsafe-inline'",
+        // Remove unsafe-eval in production - Vue 3 uses pre-compiled templates
+        ...(process.env.NODE_ENV === 'production' ? [] : ["'unsafe-eval'"]),
       ],
       styleSrc: [
         "'self'",
-        "'unsafe-inline'", // Still needed for Tailwind CDN dynamic styles
-        "https://cdn.jsdelivr.net",
-        "https://cdn.tailwindcss.com"
+        "'unsafe-inline'", // Needed for Vue/Vite style injection
       ],
       imgSrc: ["'self'", "data:", "https:"],
       connectSrc: [
         "'self'",
-        "https://cdn.jsdelivr.net",
-        process.env.FRONTEND_URL || "*"
+        // API connections
+        process.env.FRONTEND_URL || "http://localhost:5173",
+        // Stripe (for billing)
+        "https://api.stripe.com",
+        "https://js.stripe.com",
       ],
-      fontSrc: ["'self'", "https://cdn.jsdelivr.net"],
+      fontSrc: ["'self'", "data:"],
       objectSrc: ["'none'"],
       mediaSrc: ["'self'"],
-      frameSrc: ["'none'"],
+      frameSrc: [
+        "'self'",
+        // Stripe checkout iframe
+        "https://js.stripe.com",
+        "https://hooks.stripe.com",
+      ],
+      childSrc: ["'self'", "blob:"],
+      workerSrc: ["'self'", "blob:"],
       baseUri: ["'self'"],
       formAction: ["'self'"],
+      // Upgrade HTTP to HTTPS in production
       upgradeInsecureRequests: process.env.NODE_ENV === 'production' ? [] : null,
     },
   },
+  // HSTS - enforce HTTPS
   hsts: {
-    maxAge: 31536000,
+    maxAge: 31536000, // 1 year
     includeSubDomains: true,
     preload: true,
   },
+  // Prevent MIME type sniffing
+  noSniff: true,
+  // Prevent clickjacking
+  frameguard: {
+    action: 'deny',
+  },
+  // XSS filter (legacy browsers)
+  xssFilter: true,
+  // Hide X-Powered-By header
+  hidePoweredBy: true,
+  // Referrer policy - don't leak URLs
+  referrerPolicy: {
+    policy: 'strict-origin-when-cross-origin',
+  },
+  // Permissions policy - disable sensitive features
+  permittedCrossDomainPolicies: {
+    permittedPolicies: 'none',
+  },
 }));
+
+// Additional security headers not covered by helmet
+app.use((req, res, next) => {
+  // Permissions-Policy (formerly Feature-Policy)
+  res.setHeader('Permissions-Policy',
+    'accelerometer=(), camera=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=(self), usb=()');
+
+  // X-Content-Type-Options already set by helmet
+  // X-Frame-Options already set by helmet
+
+  next();
+});
 
 app.use(compression());
 
@@ -188,6 +227,13 @@ app.get('/health', (req, res) => {
     uptime: process.uptime(),
     environment: process.env.NODE_ENV || 'development'
   });
+});
+
+// 301 Redirect: login.html → /login (migrate to SPA login)
+// This ensures old bookmarks and links continue to work
+app.get('/login.html', (req, res) => {
+  logger.info('Redirecting login.html to /login', { ip: req.ip });
+  res.redirect(301, '/login');
 });
 
 // Serve index.html for all other routes (SPA support)
