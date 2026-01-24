@@ -183,5 +183,4 @@ git push
 ```
 
 ### Working Directory
-Main project path: `live-sales-v7/` (relative to repo root)
-Full path on dev machine: `c:\Users\huber\OneDrive\Pulpit\VS CODE\live-sales-v24\live-sales-v23\live-sales-v23\live-sales-v21\live-sales-v21\live-sales-v7`
+Project root: `c:\Users\huber\OneDrive\Pulpit\VS CODE\live-sales-main`
