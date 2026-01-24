@@ -68,6 +68,8 @@ app.use(helmet({
         // unsafe-inline still needed for Vite's dev mode and some runtime features
         // TODO: Configure Vite to output external scripts for strict CSP in production
         "'unsafe-inline'",
+        // Tailwind CSS CDN - needed until proper build is configured
+        "https://cdn.tailwindcss.com",
         // Remove unsafe-eval in production - Vue 3 uses pre-compiled templates
         ...(process.env.NODE_ENV === 'production' ? [] : ["'unsafe-eval'"]),
       ],

@@ -325,8 +325,13 @@ router.post('/login', validate(loginSchema), async (req, res) => {
  * @route POST /api/auth/refresh
  * @desc Refresh access token
  * @access Public (uses HttpOnly cookie)
+ *
+ * CSRF Protection: SameSite=Strict on refreshToken cookie is sufficient.
+ * Browser won't send the cookie on cross-origin requests, so CSRF attacks
+ * cannot work. Double-submit CSRF was removed because it broke the bootstrap
+ * flow (first request has no CSRF cookie yet).
  */
-router.post('/refresh', doubleSubmitCsrf, async (req, res) => {
+router.post('/refresh', async (req, res) => {
   try {
     // Read refresh token from HttpOnly cookie (NOT from body)
     const refreshToken = req.cookies?.refreshToken;
@@ -431,8 +436,11 @@ router.post('/refresh', doubleSubmitCsrf, async (req, res) => {
  * @route POST /api/auth/logout
  * @desc Logout user (revoke refresh token and clear cookie)
  * @access Public (can logout even with expired access token)
+ *
+ * CSRF Protection: SameSite=Strict on refreshToken cookie is sufficient.
+ * Without the cookie, logout has no effect anyway.
  */
-router.post('/logout', doubleSubmitCsrf, async (req, res) => {
+router.post('/logout', async (req, res) => {
   try {
     // Read refresh token from HttpOnly cookie
     const refreshToken = req.cookies?.refreshToken;

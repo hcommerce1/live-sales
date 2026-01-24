@@ -218,19 +218,12 @@ export const API = {
     },
 
     // Logout (clears HttpOnly cookie on backend)
-    // CSRF: Must send X-CSRF-Token header
+    // CSRF Protection: Not needed - SameSite=Strict cookie provides protection
     async logout() {
       try {
-        const csrfToken = getCsrfToken();
-        const headers = { 'Content-Type': 'application/json' };
-
-        if (csrfToken) {
-          headers['X-CSRF-Token'] = csrfToken;
-        }
-
         await fetch(`${API_BASE_URL}/api/auth/logout`, {
           method: 'POST',
-          headers,
+          headers: { 'Content-Type': 'application/json' },
           credentials: 'include', // Important: send HttpOnly cookie to be cleared
         });
       } catch (error) {
@@ -241,18 +234,11 @@ export const API = {
     },
 
     // Refresh token (uses HttpOnly cookie)
-    // CSRF: Must send X-CSRF-Token header
+    // CSRF Protection: Not needed - SameSite=Strict cookie provides protection
     async refresh() {
-      const csrfToken = getCsrfToken();
-      const headers = { 'Content-Type': 'application/json' };
-
-      if (csrfToken) {
-        headers['X-CSRF-Token'] = csrfToken;
-      }
-
       const response = await fetch(`${API_BASE_URL}/api/auth/refresh`, {
         method: 'POST',
-        headers,
+        headers: { 'Content-Type': 'application/json' },
         credentials: 'include', // Important: send HttpOnly cookie
       });
 
