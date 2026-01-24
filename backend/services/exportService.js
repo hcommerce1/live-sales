@@ -17,6 +17,9 @@ const googleSheetsService = require('./googleSheetsService');
 const logger = require('../utils/logger');
 const { PrismaClient } = require('@prisma/client');
 const exportFields = require('../config/export-fields');
+const { logDataEvent, AUDIT_ACTIONS } = require('./security-audit.service');
+const emailService = require('./email.service');
+const onboardingService = require('./onboarding.service');
 
 const prisma = new PrismaClient();
 
@@ -437,16 +440,38 @@ class ExportService {
       metadata.sheetsWritten = writeResults;
       metadata.durationMs = Date.now() - startTime;
 
+      const status = allSuccess ? 'success' : (someSuccess ? 'partial_failure' : 'failure');
+
       logger.info('Export completed', {
         exportId,
         recordCount: data.length,
-        status: allSuccess ? 'success' : (someSuccess ? 'partial_failure' : 'failure'),
+        status,
         durationMs: metadata.durationMs
       });
 
+      // Audit log - EXPORT_RUN (success)
+      await logDataEvent(AUDIT_ACTIONS.EXPORT_RUN, {
+        userId: effectiveUserId,
+        companyId,
+        resourceType: 'export',
+        resourceId: exportId,
+        changes: {
+          status,
+          recordCount: data.length,
+          durationMs: metadata.durationMs,
+          triggeredBy: metadata.triggeredBy,
+          sheetsWritten: writeResults.length,
+        },
+      });
+
+      // Auto-update onboarding: firstExportRun (only on full success)
+      if (allSuccess && effectiveUserId) {
+        onboardingService.markFirstExportRun(effectiveUserId).catch(() => {});
+      }
+
       return {
         success: allSuccess,
-        status: allSuccess ? 'success' : (someSuccess ? 'partial_failure' : 'failure'),
+        status,
         recordCount: data.length,
         writeResults,
         metadata
@@ -461,6 +486,32 @@ class ExportService {
       if (exportConfigs[exportId]) {
         exportConfigs[exportId].status = 'error';
         exportConfigs[exportId].lastError = error.message;
+      }
+
+      // Audit log - EXPORT_RUN (failure)
+      await logDataEvent(AUDIT_ACTIONS.EXPORT_RUN, {
+        userId: effectiveUserId,
+        companyId,
+        resourceType: 'export',
+        resourceId: exportId,
+        changes: {
+          status: 'failure',
+          error: error.message,
+          durationMs: Date.now() - startTime,
+          triggeredBy: metadata.triggeredBy,
+        },
+      });
+
+      // Send email notification about export error
+      if (companyId) {
+        emailService.sendExportErrorNotification(
+          companyId,
+          config.name || exportId,
+          error.message,
+          { exportId }
+        ).catch(emailErr => {
+          logger.error('Failed to send export error email', { error: emailErr.message });
+        });
       }
 
       throw error;

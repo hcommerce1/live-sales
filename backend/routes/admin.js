@@ -4,6 +4,7 @@
  * SECURITY:
  * - All endpoints require authentication
  * - Feature flag endpoints require 'admin' role OR DEV environment
+ * - Audit log endpoints: admin sees own company, super-admin sees all
  * - All changes are audit logged
  */
 
@@ -12,6 +13,7 @@ const router = express.Router();
 const featureFlags = require('../utils/feature-flags');
 const logger = require('../utils/logger');
 const { isValidFlag, getAllFlagNames } = require('../config/feature-flags.config');
+const { queryAuditLogs, getSecuritySummary, AUDIT_CATEGORIES, SEVERITY } = require('../services/security-audit.service');
 
 /**
  * Check if user has admin access
@@ -292,6 +294,258 @@ router.get('/feature-flags/:flagName/check', requireAdminAccess, async (req, res
     res.status(500).json({
       error: 'Failed to check feature flag',
       code: 'CHECK_FAILED',
+    });
+  }
+});
+
+// ============================================
+// AUDIT LOGS ENDPOINTS
+// ============================================
+
+/**
+ * GET /api/admin/audit-logs
+ * Get audit logs for the company
+ *
+ * SECURITY:
+ * - Admin sees logs from their own company only (req.company.id)
+ * - Super-admin (role=admin + isDev) can see all companies
+ * - companyId is NOT a free parameter for normal admins
+ *
+ * Query params:
+ *   - category: AUTH, ACCESS, DATA, BILLING, SECURITY, ADMIN
+ *   - action: specific action name
+ *   - severity: LOW, MEDIUM, HIGH, CRITICAL
+ *   - startDate: ISO date string
+ *   - endDate: ISO date string
+ *   - limit: number (default 100, max 500)
+ *   - offset: number (default 0)
+ */
+router.get('/audit-logs', requireAdminAccess, async (req, res) => {
+  try {
+    const {
+      category,
+      action,
+      severity,
+      startDate,
+      endDate,
+      limit = '100',
+      offset = '0',
+    } = req.query;
+
+    const isDev = process.env.NODE_ENV === 'development';
+    const isSuperAdmin = req.user.role === 'admin' && isDev;
+
+    // SECURITY: Admin sees only their company's logs
+    // Super-admin can see all (only in dev environment)
+    let companyId = null;
+    if (req.company && req.company.id) {
+      companyId = req.company.id;
+    } else if (!isSuperAdmin) {
+      // Non-super-admin without company context cannot view logs
+      return res.status(403).json({
+        error: 'Company context required to view audit logs',
+        code: 'NO_COMPANY_CONTEXT',
+      });
+    }
+
+    // Parse and validate parameters
+    const parsedLimit = Math.min(Math.max(parseInt(limit, 10) || 100, 1), 500);
+    const parsedOffset = Math.max(parseInt(offset, 10) || 0, 0);
+
+    // Validate category if provided
+    if (category && !Object.values(AUDIT_CATEGORIES).includes(category)) {
+      return res.status(400).json({
+        error: `Invalid category. Valid values: ${Object.values(AUDIT_CATEGORIES).join(', ')}`,
+        code: 'INVALID_CATEGORY',
+      });
+    }
+
+    // Validate severity if provided
+    if (severity && !Object.values(SEVERITY).includes(severity)) {
+      return res.status(400).json({
+        error: `Invalid severity. Valid values: ${Object.values(SEVERITY).join(', ')}`,
+        code: 'INVALID_SEVERITY',
+      });
+    }
+
+    // Parse dates
+    const parsedStartDate = startDate ? new Date(startDate) : null;
+    const parsedEndDate = endDate ? new Date(endDate) : null;
+
+    if (parsedStartDate && isNaN(parsedStartDate.getTime())) {
+      return res.status(400).json({
+        error: 'Invalid startDate format',
+        code: 'INVALID_DATE',
+      });
+    }
+
+    if (parsedEndDate && isNaN(parsedEndDate.getTime())) {
+      return res.status(400).json({
+        error: 'Invalid endDate format',
+        code: 'INVALID_DATE',
+      });
+    }
+
+    // Query audit logs
+    const result = await queryAuditLogs({
+      category: category || undefined,
+      action: action || undefined,
+      companyId: companyId, // null for super-admin means all companies
+      severity: severity || undefined,
+      startDate: parsedStartDate,
+      endDate: parsedEndDate,
+      limit: parsedLimit,
+      offset: parsedOffset,
+    });
+
+    logger.info('Audit logs retrieved', {
+      userId: req.user.id,
+      companyId: companyId || 'all',
+      filters: { category, action, severity, startDate, endDate },
+      resultCount: result.logs.length,
+      total: result.total,
+    });
+
+    res.json({
+      success: true,
+      data: result.logs,
+      pagination: {
+        total: result.total,
+        limit: result.limit,
+        offset: result.offset,
+        hasMore: result.offset + result.logs.length < result.total,
+      },
+    });
+  } catch (error) {
+    logger.error('Failed to get audit logs', {
+      error: error.message,
+      userId: req.user.id,
+    });
+
+    res.status(500).json({
+      error: 'Failed to retrieve audit logs',
+      code: 'AUDIT_LOGS_ERROR',
+    });
+  }
+});
+
+/**
+ * GET /api/admin/audit-logs/summary
+ * Get security summary for dashboard (last 7 days)
+ *
+ * Returns counts of:
+ * - Total events
+ * - High severity events
+ * - Login failures
+ * - Access denials
+ */
+router.get('/audit-logs/summary', requireAdminAccess, async (req, res) => {
+  try {
+    const isDev = process.env.NODE_ENV === 'development';
+    const isSuperAdmin = req.user.role === 'admin' && isDev;
+
+    let companyId = null;
+    if (req.company && req.company.id) {
+      companyId = req.company.id;
+    } else if (!isSuperAdmin) {
+      return res.status(403).json({
+        error: 'Company context required',
+        code: 'NO_COMPANY_CONTEXT',
+      });
+    }
+
+    const summary = await getSecuritySummary(companyId, 7);
+
+    res.json({
+      success: true,
+      data: summary,
+    });
+  } catch (error) {
+    logger.error('Failed to get security summary', {
+      error: error.message,
+      userId: req.user.id,
+    });
+
+    res.status(500).json({
+      error: 'Failed to retrieve security summary',
+      code: 'SUMMARY_ERROR',
+    });
+  }
+});
+
+/**
+ * GET /api/admin/audit-logs/export
+ * Export audit logs as CSV
+ *
+ * Same filters as GET /audit-logs but returns CSV file
+ */
+router.get('/audit-logs/export', requireAdminAccess, async (req, res) => {
+  try {
+    const {
+      category,
+      action,
+      severity,
+      startDate,
+      endDate,
+    } = req.query;
+
+    const isDev = process.env.NODE_ENV === 'development';
+    const isSuperAdmin = req.user.role === 'admin' && isDev;
+
+    let companyId = null;
+    if (req.company && req.company.id) {
+      companyId = req.company.id;
+    } else if (!isSuperAdmin) {
+      return res.status(403).json({
+        error: 'Company context required',
+        code: 'NO_COMPANY_CONTEXT',
+      });
+    }
+
+    // Parse dates
+    const parsedStartDate = startDate ? new Date(startDate) : null;
+    const parsedEndDate = endDate ? new Date(endDate) : null;
+
+    // Query all matching logs (with higher limit for export)
+    const result = await queryAuditLogs({
+      category: category || undefined,
+      action: action || undefined,
+      companyId: companyId,
+      severity: severity || undefined,
+      startDate: parsedStartDate,
+      endDate: parsedEndDate,
+      limit: 10000, // Max export limit
+      offset: 0,
+    });
+
+    // Generate CSV
+    const csvHeader = 'Data,Akcja,Kategoria,Poziom,Uzytkownik,IP,Szczegoly\n';
+    const csvRows = result.logs.map((log) => {
+      const date = new Date(log.createdAt).toISOString();
+      const details = log.metadata ? JSON.stringify(log.metadata).replace(/"/g, '""') : '';
+      return `"${date}","${log.action}","${log.category || ''}","${log.severity || ''}","${log.userId || 'System'}","${log.ip || ''}","${details}"`;
+    });
+
+    const csv = csvHeader + csvRows.join('\n');
+
+    logger.info('Audit logs exported', {
+      userId: req.user.id,
+      companyId: companyId || 'all',
+      exportCount: result.logs.length,
+    });
+
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="audit-logs-${new Date().toISOString().split('T')[0]}.csv"`);
+    res.send(csv);
+  } catch (error) {
+    logger.error('Failed to export audit logs', {
+      error: error.message,
+      userId: req.user.id,
+    });
+
+    res.status(500).json({
+      error: 'Failed to export audit logs',
+      code: 'EXPORT_ERROR',
     });
   }
 });

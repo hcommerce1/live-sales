@@ -47,10 +47,11 @@ model Company {
   updatedAt         DateTime  @updatedAt
 
   // Relations
-  members           CompanyMember[]
-  secrets           CompanySecret[]
-  exports           Export[]        @relation("CompanyExports")
-  subscription      Subscription?   // One active subscription per company
+  members              CompanyMember[]
+  secrets              CompanySecret[]
+  exports              Export[]              @relation("CompanyExports")
+  subscription         Subscription?         // One active subscription per company
+  notificationSettings NotificationSettings? // Email notification settings
 
   @@map("companies")
   @@index([nip])
@@ -92,13 +93,20 @@ model CompanyMember {
 
 // Company secrets - encrypted storage for API tokens
 // Feature flag: company.secrets.enabled
+// UPDATED: Support for multiple tokens per provider with names
 model CompanySecret {
   id                String    @id @default(uuid())
   companyId         String
   company           Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
 
-  // Secret type
+  // Secret type (provider_token format)
   secretType        String    // 'baselinker_token', 'google_credentials', etc.
+
+  // NEW: Human-readable name for the token
+  name              String    @default("Domyślny token")
+
+  // NEW: Default token per provider (only one per companyId+secretType)
+  isDefault         Boolean   @default(false)
 
   // Encrypted value (AES-256-GCM)
   encryptedValue    String
@@ -112,9 +120,14 @@ model CompanySecret {
   updatedAt         DateTime  @updatedAt
   lastUsedAt        DateTime?
 
-  @@unique([companyId, secretType])
+  // Relations
+  exports           Export[]  @relation("ExportSecret")
+
+  // CHANGED: unique on (companyId, secretType, name) to allow multiple tokens per provider
+  @@unique([companyId, secretType, name])
   @@map("company_secrets")
   @@index([companyId])
+  @@index([companyId, secretType])
 }
 
 // ============================================
@@ -217,7 +230,7 @@ model User {
   role            String   @default("user") // user, admin
   isActive        Boolean  @default(true)
   emailVerified   Boolean  @default(false)
-  twoFactorSecret String?  // TOTP secret
+  twoFactorSecret String?  // TOTP secret (base32 encoded)
   twoFactorEnabled Boolean @default(false)
 
   // BaseLinker API token (encrypted with AES-256-GCM)
@@ -230,10 +243,12 @@ model User {
   lastActivityAt  DateTime? // Session timeout tracking
 
   // Relations
-  exports         Export[]          @relation("UserExports")
-  auditLogs       AuditLog[]
-  refreshTokens   RefreshToken[]
-  companyMembers  CompanyMember[]   // User can belong to multiple companies
+  exports              Export[]               @relation("UserExports")
+  auditLogs            AuditLog[]
+  refreshTokens        RefreshToken[]
+  companyMembers       CompanyMember[]        // User can belong to multiple companies
+  onboarding           UserOnboarding?        // Onboarding checklist state
+  twoFactorBackupCodes TwoFactorBackupCode[]  // 2FA backup codes (hashed)
 
   @@map("users")
 }
@@ -267,6 +282,11 @@ model Export {
   companyId       String?
   company         Company? @relation("CompanyExports", fields: [companyId], references: [id], onDelete: Cascade)
   createdBy       String?  // userId who created (when under company)
+
+  // NEW: Which CompanySecret to use for API calls
+  // If null, use the default token for the provider
+  secretId        String?
+  secret          CompanySecret? @relation("ExportSecret", fields: [secretId], references: [id], onDelete: SetNull)
 
   name            String
   dataset         String   // 'orders', 'products', 'invoices', 'order_products'
@@ -308,6 +328,7 @@ model Export {
   @@map("exports")
   @@index([userId])
   @@index([companyId])
+  @@index([secretId])
   @@index([status])
 }
 
@@ -423,4 +444,75 @@ model ApiKey {
   @@map("api_keys")
   @@index([userId])
   @@index([keyHash])
+}
+
+// ============================================
+// NEW MODELS (PR: Multiple tokens, 2FA, Notifications, Onboarding)
+// ============================================
+
+// Notification settings per company
+// For error alerts (NOT marketing emails)
+model NotificationSettings {
+  id                    String   @id @default(uuid())
+  companyId             String   @unique
+  company               Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  // Email addresses for error notifications (max 5)
+  errorEmails           String[] // Array of email addresses
+
+  // Notification types
+  notifyOnExportError   Boolean  @default(true)
+  notifyOnPaymentIssue  Boolean  @default(true)
+
+  // Metadata
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  @@map("notification_settings")
+}
+
+// User onboarding checklist state
+model UserOnboarding {
+  id                  String    @id @default(uuid())
+  userId              String    @unique
+  user                User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Onboarding steps (true = completed)
+  tokenConfigured     Boolean   @default(false)
+  firstExportCreated  Boolean   @default(false)
+  sheetsConnected     Boolean   @default(false)
+  firstExportRun      Boolean   @default(false)
+
+  // UI state
+  dismissed           Boolean   @default(false)
+
+  // Completion tracking
+  completedAt         DateTime? // Set when all steps are done
+
+  // Metadata
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  @@map("user_onboarding")
+}
+
+// 2FA backup codes - stored HASHED (Argon2id)
+// Each code can only be used once
+model TwoFactorBackupCode {
+  id          String   @id @default(uuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Hashed backup code (Argon2id) - NOT plaintext!
+  codeHash    String
+
+  // One-time use tracking
+  usedAt      DateTime?
+
+  // Metadata
+  createdAt   DateTime @default(now())
+
+  @@map("two_factor_backup_codes")
+  @@index([userId])
+  @@index([userId, usedAt]) // For finding unused codes
 }

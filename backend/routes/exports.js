@@ -3,6 +3,8 @@ const router = express.Router();
 const exportService = require('../services/exportService');
 const scheduler = require('../scheduler');
 const logger = require('../utils/logger');
+const { logDataEvent, AUDIT_ACTIONS } = require('../services/security-audit.service');
+const onboardingService = require('../services/onboarding.service');
 
 // Feature gating imports
 const featureService = require('../services/feature.service');
@@ -209,11 +211,42 @@ router.post('/',
         }
       }
 
+      // Check if this is create or update
+      const existingExport = exportService.getExport(config.id);
+      const isCreate = !existingExport;
+
       // Save export with company context
       const savedConfig = exportService.saveExport(config.id, {
         ...config,
         companyId // Add company context
       }, userId);
+
+      // Audit log - EXPORT_CREATED or EXPORT_MODIFIED
+      await logDataEvent(
+        isCreate ? AUDIT_ACTIONS.EXPORT_CREATED : AUDIT_ACTIONS.EXPORT_MODIFIED,
+        {
+          userId,
+          companyId,
+          resourceType: 'export',
+          resourceId: savedConfig.id,
+          changes: {
+            name: savedConfig.name,
+            dataset: savedConfig.dataset,
+            status: savedConfig.status,
+            scheduleMinutes: savedConfig.schedule_minutes,
+            isCreate,
+          },
+        }
+      );
+
+      // Auto-update onboarding steps
+      if (isCreate) {
+        onboardingService.markFirstExportCreated(userId).catch(() => {});
+      }
+      // Sheets URL validated = sheets connected
+      if (savedConfig.sheetsUrl) {
+        onboardingService.markSheetsConnected(userId).catch(() => {});
+      }
 
       // Update scheduler if export is active
       if (savedConfig.status === 'active' && savedConfig.schedule_minutes) {
@@ -243,9 +276,23 @@ router.post('/',
  * DELETE /api/exports/:id
  * Delete export configuration
  */
-router.delete('/:id', (req, res) => {
+router.delete('/:id', async (req, res) => {
   try {
-    const deleted = exportService.deleteExport(req.params.id);
+    const exportId = req.params.id;
+    const userId = req.user?.id;
+    const companyId = req.company?.id;
+
+    // Get export info before deleting for audit log
+    const exportConfig = exportService.getExport(exportId);
+
+    if (!exportConfig) {
+      return res.status(404).json({
+        success: false,
+        error: 'Export not found'
+      });
+    }
+
+    const deleted = exportService.deleteExport(exportId);
 
     if (!deleted) {
       return res.status(404).json({
@@ -255,7 +302,19 @@ router.delete('/:id', (req, res) => {
     }
 
     // Stop scheduled job
-    scheduler.stopExport(req.params.id);
+    scheduler.stopExport(exportId);
+
+    // Audit log - EXPORT_DELETED
+    await logDataEvent(AUDIT_ACTIONS.EXPORT_DELETED, {
+      userId,
+      companyId,
+      resourceType: 'export',
+      resourceId: exportId,
+      changes: {
+        name: exportConfig.name,
+        dataset: exportConfig.dataset,
+      },
+    });
 
     res.json({
       success: true,
@@ -357,9 +416,10 @@ router.get('/:id/stats', (req, res) => {
  * POST /api/exports/:id/toggle
  * Toggle export status (active/paused)
  */
-router.post('/:id/toggle', (req, res) => {
+router.post('/:id/toggle', async (req, res) => {
   try {
     const userId = req.user.id; // From authMiddleware.authenticate()
+    const companyId = req.company?.id;
     const exportConfig = exportService.getExport(req.params.id);
 
     if (!exportConfig) {
@@ -370,10 +430,23 @@ router.post('/:id/toggle', (req, res) => {
     }
 
     // Toggle status
-    const newStatus = exportConfig.status === 'active' ? 'paused' : 'active';
+    const oldStatus = exportConfig.status;
+    const newStatus = oldStatus === 'active' ? 'paused' : 'active';
     exportConfig.status = newStatus;
 
     const savedConfig = exportService.saveExport(exportConfig.id, exportConfig, userId);
+
+    // Audit log - EXPORT_MODIFIED (status change)
+    await logDataEvent(AUDIT_ACTIONS.EXPORT_MODIFIED, {
+      userId,
+      companyId,
+      resourceType: 'export',
+      resourceId: savedConfig.id,
+      changes: {
+        name: savedConfig.name,
+        statusChange: { from: oldStatus, to: newStatus },
+      },
+    });
 
     // Update scheduler
     if (newStatus === 'active' && savedConfig.schedule_minutes) {

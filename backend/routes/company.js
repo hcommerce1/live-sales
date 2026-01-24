@@ -9,11 +9,15 @@ const express = require('express');
 const router = express.Router();
 const { z } = require('zod');
 
+const { PrismaClient } = require('@prisma/client');
 const companyService = require('../services/company.service');
 const authMiddleware = require('../middleware/auth');
+const { companyContextMiddleware } = require('../middleware/companyContext');
 const featureFlags = require('../utils/feature-flags');
 const logger = require('../utils/logger');
 const passwordService = require('../utils/password');
+
+const prisma = new PrismaClient();
 
 // ============================================
 // Validation Schemas
@@ -46,6 +50,16 @@ const updateCompanySchema = z.object({
     country: z.string().length(2).optional(),
   }).optional(),
   vatStatus: z.enum(['active', 'exempt', 'inactive']).optional(),
+});
+
+// Notification settings schema
+const MAX_ERROR_EMAILS = 5;
+const updateNotificationSettingsSchema = z.object({
+  errorEmails: z.array(z.string().email('Invalid email address'))
+    .max(MAX_ERROR_EMAILS, `Maximum ${MAX_ERROR_EMAILS} email addresses allowed`)
+    .default([]),
+  notifyOnExportError: z.boolean().default(true),
+  notifyOnPaymentIssue: z.boolean().default(true),
 });
 
 // ============================================
@@ -379,6 +393,149 @@ router.delete('/:id', authMiddleware.authenticate(), async (req, res, next) => {
       message: 'Company deleted successfully',
     });
   } catch (error) {
+    next(error);
+  }
+});
+
+// ============================================
+// Notification Settings Routes
+// ============================================
+
+/**
+ * GET /api/company/notifications
+ * Get notification settings for current company
+ */
+router.get('/notifications', authMiddleware.authenticate(), companyContextMiddleware, async (req, res, next) => {
+  try {
+    const companyId = req.company?.id;
+
+    if (!companyId) {
+      return res.status(400).json({
+        error: 'Company context required',
+        code: 'NO_COMPANY_CONTEXT'
+      });
+    }
+
+    // Verify user has access to company (at least member)
+    const companies = await companyService.getCompaniesForUser(req.user.id);
+    const membership = companies.find((c) => c.id === companyId);
+
+    if (!membership) {
+      return res.status(403).json({
+        error: 'You are not a member of this company',
+        code: 'NOT_A_MEMBER',
+      });
+    }
+
+    // Get or create notification settings
+    let settings = await prisma.notificationSettings.findUnique({
+      where: { companyId }
+    });
+
+    if (!settings) {
+      // Create default settings
+      settings = await prisma.notificationSettings.create({
+        data: {
+          companyId,
+          errorEmails: [],
+          notifyOnExportError: true,
+          notifyOnPaymentIssue: true,
+        }
+      });
+    }
+
+    res.json({
+      success: true,
+      data: {
+        errorEmails: settings.errorEmails,
+        notifyOnExportError: settings.notifyOnExportError,
+        notifyOnPaymentIssue: settings.notifyOnPaymentIssue,
+      }
+    });
+  } catch (error) {
+    logger.error('Failed to get notification settings', {
+      error: error.message,
+      userId: req.user?.id,
+      companyId: req.company?.id
+    });
+    next(error);
+  }
+});
+
+/**
+ * PUT /api/company/notifications
+ * Update notification settings for current company
+ */
+router.put('/notifications', authMiddleware.authenticate(), companyContextMiddleware, validateBody(updateNotificationSettingsSchema), async (req, res, next) => {
+  try {
+    const companyId = req.company?.id;
+    const { errorEmails, notifyOnExportError, notifyOnPaymentIssue } = req.validatedBody;
+
+    if (!companyId) {
+      return res.status(400).json({
+        error: 'Company context required',
+        code: 'NO_COMPANY_CONTEXT'
+      });
+    }
+
+    // Verify user has admin/owner access
+    const companies = await companyService.getCompaniesForUser(req.user.id);
+    const membership = companies.find((c) => c.id === companyId);
+
+    if (!membership) {
+      return res.status(403).json({
+        error: 'You are not a member of this company',
+        code: 'NOT_A_MEMBER',
+      });
+    }
+
+    if (!['owner', 'admin'].includes(membership.role)) {
+      return res.status(403).json({
+        error: 'Only owner or admin can update notification settings',
+        code: 'PERMISSION_DENIED',
+      });
+    }
+
+    // Remove duplicates from errorEmails
+    const uniqueEmails = [...new Set(errorEmails.map(e => e.toLowerCase().trim()))];
+
+    // Upsert notification settings
+    const settings = await prisma.notificationSettings.upsert({
+      where: { companyId },
+      create: {
+        companyId,
+        errorEmails: uniqueEmails,
+        notifyOnExportError,
+        notifyOnPaymentIssue,
+      },
+      update: {
+        errorEmails: uniqueEmails,
+        notifyOnExportError,
+        notifyOnPaymentIssue,
+      }
+    });
+
+    logger.info('Notification settings updated', {
+      userId: req.user.id,
+      companyId,
+      emailCount: uniqueEmails.length
+    });
+
+    res.json({
+      success: true,
+      data: {
+        errorEmails: settings.errorEmails,
+        notifyOnExportError: settings.notifyOnExportError,
+        notifyOnPaymentIssue: settings.notifyOnPaymentIssue,
+      },
+      message: 'Notification settings updated successfully'
+    });
+  } catch (error) {
+    logger.error('Failed to update notification settings', {
+      error: error.message,
+      userId: req.user?.id,
+      companyId: req.company?.id
+    });
     next(error);
   }
 });

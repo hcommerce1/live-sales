@@ -43,6 +43,46 @@ const refreshTokenSchema = z.object({
     .min(1, 'Refresh token required'),
 });
 
+// Password validation rules (reusable)
+const passwordRules = z.string()
+  .min(12, 'Password must be at least 12 characters')
+  .max(128, 'Password too long')
+  .regex(/[a-z]/, 'Password must contain lowercase letters')
+  .regex(/[A-Z]/, 'Password must contain uppercase letters')
+  .regex(/[0-9]/, 'Password must contain numbers')
+  .regex(/[^a-zA-Z0-9]/, 'Password must contain special characters');
+
+const changePasswordSchema = z.object({
+  currentPassword: z.string()
+    .min(1, 'Current password required')
+    .max(128, 'Password too long'),
+
+  newPassword: passwordRules,
+}).refine(data => data.currentPassword !== data.newPassword, {
+  message: 'New password must be different from current password',
+  path: ['newPassword'],
+});
+
+// 2FA schemas
+const twoFactorCodeSchema = z.string()
+  .length(6, 'Code must be 6 digits')
+  .regex(/^\d{6}$/, 'Code must be numeric');
+
+const twoFactorVerifySetupSchema = z.object({
+  code: twoFactorCodeSchema,
+  secret: z.string().min(1, 'Secret required'),
+});
+
+const twoFactorDisableSchema = z.object({
+  password: z.string().min(1, 'Password required').max(128),
+  code: twoFactorCodeSchema,
+});
+
+const twoFactorVerifyLoginSchema = z.object({
+  tempToken: z.string().uuid('Invalid temp token'),
+  code: z.string().min(1, 'Code required').max(20), // Allows TOTP or backup code
+});
+
 // Export configuration schemas
 const exportFiltersSchema = z.object({
   date_from: z.string().datetime().optional(),
@@ -200,6 +240,10 @@ module.exports = {
   registerSchema,
   loginSchema,
   refreshTokenSchema,
+  changePasswordSchema,
+  twoFactorVerifySetupSchema,
+  twoFactorDisableSchema,
+  twoFactorVerifyLoginSchema,
   createExportSchema,
   updateExportSchema,
   uuidSchema,
