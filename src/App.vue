@@ -2539,8 +2539,8 @@ onBeforeUnmount(() => {
                                         <p class="font-medium mb-1">Jak znaleźć token BaseLinker?</p>
                                         <ol class="list-decimal list-inside space-y-1 text-blue-700">
                                             <li>Zaloguj się do BaseLinker</li>
-                                            <li>Przejdź do: Integracje → API</li>
-                                            <li>Skopiuj token API</li>
+                                            <li>Przejdź do: <a href="https://panel-g.baselinker.com/other_api_token" target="_blank" class="underline hover:text-blue-900 font-medium">Moje konto → API</a></li>
+                                            <li>Wygeneruj lub skopiuj token API</li>
                                             <li>Wklej token w pole powyżej</li>
                                         </ol>
                                     </div>
