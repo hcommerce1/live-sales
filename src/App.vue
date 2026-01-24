@@ -32,9 +32,10 @@ const authStore = useAuthStore()
 // Initial auth check on mount
 onMounted(async () => {
   // Remove the initial loading indicator from index.html
-  const loader = document.getElementById('app-loading')
+  const loader = document.getElementById('initial-loader')
   if (loader) {
-    loader.remove()
+    loader.classList.add('fade-out')
+    setTimeout(() => loader.remove(), 300) // Wait for fade animation
   }
 
   // Check auth status if still in CHECKING state
