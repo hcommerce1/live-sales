@@ -27,12 +27,21 @@ CREATE INDEX IF NOT EXISTS "company_secrets_companyId_secretType_idx" ON "compan
 -- =====================================================
 ALTER TABLE "exports" ADD COLUMN IF NOT EXISTS "secretId" TEXT;
 
--- Add foreign key constraint
-ALTER TABLE "exports"
-  ADD CONSTRAINT IF NOT EXISTS "exports_secretId_fkey"
-  FOREIGN KEY ("secretId")
-  REFERENCES "company_secrets"("id")
-  ON DELETE SET NULL ON UPDATE CASCADE;
+-- Add foreign key constraint (using DO block for idempotency)
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.table_constraints
+    WHERE constraint_name = 'exports_secretId_fkey'
+    AND table_name = 'exports'
+  ) THEN
+    ALTER TABLE "exports"
+      ADD CONSTRAINT "exports_secretId_fkey"
+      FOREIGN KEY ("secretId")
+      REFERENCES "company_secrets"("id")
+      ON DELETE SET NULL ON UPDATE CASCADE;
+  END IF;
+END $$;
 
 CREATE INDEX IF NOT EXISTS "exports_secretId_idx" ON "exports"("secretId");
 
@@ -54,12 +63,21 @@ CREATE TABLE IF NOT EXISTS "notification_settings" (
 -- CreateIndex: notification_settings
 CREATE UNIQUE INDEX IF NOT EXISTS "notification_settings_companyId_key" ON "notification_settings"("companyId");
 
--- AddForeignKey
-ALTER TABLE "notification_settings"
-  ADD CONSTRAINT IF NOT EXISTS "notification_settings_companyId_fkey"
-  FOREIGN KEY ("companyId")
-  REFERENCES "companies"("id")
-  ON DELETE CASCADE ON UPDATE CASCADE;
+-- AddForeignKey (using DO block for idempotency)
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.table_constraints
+    WHERE constraint_name = 'notification_settings_companyId_fkey'
+    AND table_name = 'notification_settings'
+  ) THEN
+    ALTER TABLE "notification_settings"
+      ADD CONSTRAINT "notification_settings_companyId_fkey"
+      FOREIGN KEY ("companyId")
+      REFERENCES "companies"("id")
+      ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+END $$;
 
 -- =====================================================
 -- CreateTable: user_onboarding
@@ -82,12 +100,21 @@ CREATE TABLE IF NOT EXISTS "user_onboarding" (
 -- CreateIndex: user_onboarding
 CREATE UNIQUE INDEX IF NOT EXISTS "user_onboarding_userId_key" ON "user_onboarding"("userId");
 
--- AddForeignKey
-ALTER TABLE "user_onboarding"
-  ADD CONSTRAINT IF NOT EXISTS "user_onboarding_userId_fkey"
-  FOREIGN KEY ("userId")
-  REFERENCES "users"("id")
-  ON DELETE CASCADE ON UPDATE CASCADE;
+-- AddForeignKey (using DO block for idempotency)
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.table_constraints
+    WHERE constraint_name = 'user_onboarding_userId_fkey'
+    AND table_name = 'user_onboarding'
+  ) THEN
+    ALTER TABLE "user_onboarding"
+      ADD CONSTRAINT "user_onboarding_userId_fkey"
+      FOREIGN KEY ("userId")
+      REFERENCES "users"("id")
+      ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+END $$;
 
 -- =====================================================
 -- CreateTable: two_factor_backup_codes
@@ -106,12 +133,21 @@ CREATE TABLE IF NOT EXISTS "two_factor_backup_codes" (
 CREATE INDEX IF NOT EXISTS "two_factor_backup_codes_userId_idx" ON "two_factor_backup_codes"("userId");
 CREATE INDEX IF NOT EXISTS "two_factor_backup_codes_userId_usedAt_idx" ON "two_factor_backup_codes"("userId", "usedAt");
 
--- AddForeignKey
-ALTER TABLE "two_factor_backup_codes"
-  ADD CONSTRAINT IF NOT EXISTS "two_factor_backup_codes_userId_fkey"
-  FOREIGN KEY ("userId")
-  REFERENCES "users"("id")
-  ON DELETE CASCADE ON UPDATE CASCADE;
+-- AddForeignKey (using DO block for idempotency)
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.table_constraints
+    WHERE constraint_name = 'two_factor_backup_codes_userId_fkey'
+    AND table_name = 'two_factor_backup_codes'
+  ) THEN
+    ALTER TABLE "two_factor_backup_codes"
+      ADD CONSTRAINT "two_factor_backup_codes_userId_fkey"
+      FOREIGN KEY ("userId")
+      REFERENCES "users"("id")
+      ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+END $$;
 
 -- =====================================================
 -- Set existing tokens as default (one per company+provider)
