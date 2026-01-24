@@ -200,7 +200,7 @@ const loadTokens = async () => {
   error.value = null
 
   try {
-    const response = await props.api.get('/user/tokens')
+    const response = await props.api.get('/api/user/tokens')
     if (response.success) {
       tokens.value = response.tokens
     } else {
@@ -218,7 +218,7 @@ const addToken = async () => {
   addError.value = null
 
   try {
-    const response = await props.api.post('/user/tokens', {
+    const response = await props.api.post('/api/user/tokens', {
       name: newToken.name,
       token: newToken.token,
       provider: 'baselinker'
@@ -257,7 +257,7 @@ const cancelEdit = () => {
 
 const saveEdit = async (id) => {
   try {
-    const response = await props.api.put(`/user/tokens/${id}`, {
+    const response = await props.api.put(`/api/user/tokens/${id}`, {
       name: editName.value
     })
 
@@ -273,7 +273,7 @@ const saveEdit = async (id) => {
 
 const setDefault = async (id) => {
   try {
-    const response = await props.api.post(`/user/tokens/${id}/default`)
+    const response = await props.api.post(`/api/user/tokens/${id}/default`)
     if (response.success) {
       tokens.value.forEach(t => t.isDefault = t.id === id)
     }
@@ -292,7 +292,7 @@ const deleteToken = async () => {
   deleteError.value = null
 
   try {
-    const response = await props.api.delete(`/user/tokens/${deleteTarget.value.id}`)
+    const response = await props.api.delete(`/api/user/tokens/${deleteTarget.value.id}`)
 
     if (response.success) {
       tokens.value = tokens.value.filter(t => t.id !== deleteTarget.value.id)

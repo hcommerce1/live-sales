@@ -135,7 +135,7 @@ const loadOnboarding = async () => {
   loading.value = true
 
   try {
-    const response = await props.api.get('/user/onboarding')
+    const response = await props.api.get('/api/user/onboarding')
     if (response.success) {
       const data = response.data
       dismissed.value = data.dismissed
@@ -158,7 +158,7 @@ const loadOnboarding = async () => {
 
 const dismiss = async () => {
   try {
-    await props.api.post('/user/onboarding/dismiss')
+    await props.api.post('/api/user/onboarding/dismiss')
     dismissed.value = true
     emit('dismiss')
   } catch (err) {

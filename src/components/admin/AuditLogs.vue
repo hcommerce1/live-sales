@@ -177,7 +177,7 @@ const loadLogs = async () => {
     params.append('limit', pagination.limit.toString())
     params.append('offset', pagination.offset.toString())
 
-    const response = await props.api.get(`/admin/audit-logs?${params.toString()}`)
+    const response = await props.api.get(`/api/admin/audit-logs?${params.toString()}`)
 
     if (response.success) {
       logs.value = response.data

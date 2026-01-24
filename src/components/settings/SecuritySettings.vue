@@ -275,7 +275,7 @@ const changePassword = async () => {
   passwordLoading.value = true
 
   try {
-    const response = await props.api.post('/auth/change-password', {
+    const response = await props.api.post('/api/auth/change-password', {
       currentPassword: passwordForm.currentPassword,
       newPassword: passwordForm.newPassword
     })
@@ -300,7 +300,7 @@ const enable2FA = async () => {
   twoFactorError.value = null
 
   try {
-    const response = await props.api.post('/auth/2fa/enable')
+    const response = await props.api.post('/api/auth/2fa/enable')
 
     if (response.success) {
       qrCode.value = response.qrCode
@@ -323,7 +323,7 @@ const verifySetup = async () => {
   twoFactorError.value = null
 
   try {
-    const response = await props.api.post('/auth/2fa/verify-setup', {
+    const response = await props.api.post('/api/auth/2fa/verify-setup', {
       code: verifyCode.value,
       secret: secret.value
     })
@@ -354,7 +354,7 @@ const disable2FA = async () => {
   disableError.value = null
 
   try {
-    const response = await props.api.post('/auth/2fa/disable', {
+    const response = await props.api.post('/api/auth/2fa/disable', {
       password: disableForm.password,
       code: disableForm.code
     })

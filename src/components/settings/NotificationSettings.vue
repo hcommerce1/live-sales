@@ -117,7 +117,7 @@ const loadSettings = async () => {
   error.value = null
 
   try {
-    const response = await props.api.get('/company/notifications')
+    const response = await props.api.get('/api/company/notifications')
     if (response.success) {
       settings.errorEmails = response.data.errorEmails || []
       settings.notifyOnExportError = response.data.notifyOnExportError
@@ -141,7 +141,7 @@ const saveSettings = async () => {
   const validEmails = settings.errorEmails.filter(e => e && e.trim())
 
   try {
-    const response = await props.api.put('/company/notifications', {
+    const response = await props.api.put('/api/company/notifications', {
       errorEmails: validEmails,
       notifyOnExportError: settings.notifyOnExportError,
       notifyOnPaymentIssue: settings.notifyOnPaymentIssue
