@@ -209,10 +209,9 @@ app.get('*', (req, res, next) => {
 app.use((err, req, res, next) => {
   logger.error('Unhandled error:', err);
   res.status(err.status || 500).json({
-    error: {
-      message: err.message || 'Internal server error',
-      status: err.status || 500
-    }
+    error: err.message || 'Internal server error',
+    code: err.code || 'INTERNAL_ERROR',
+    status: err.status || 500
   });
 });
 

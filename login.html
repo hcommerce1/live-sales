@@ -721,7 +721,10 @@
                         const data = await response.json();
 
                         if (!response.ok) {
-                            throw new Error(data.error || 'Nieprawidlowy email lub haslo');
+                            const errorMsg = typeof data.error === 'string'
+                                ? data.error
+                                : (data.error?.message || 'Nieprawidlowy email lub haslo');
+                            throw new Error(errorMsg);
                         }
 
                         // Store tokens
@@ -741,7 +744,8 @@
                         }, 1200);
 
                     } catch (error) {
-                        this.showAlert('error', error.message);
+                        const msg = error?.message || (typeof error === 'string' ? error : 'Wystapil blad');
+                        this.showAlert('error', msg);
                         this.loading = false;
                     }
                 },
@@ -905,7 +909,10 @@
                                     }
                                 });
                             }
-                            throw new Error(data.error || 'Blad rejestracji');
+                            const errorMsg = typeof data.error === 'string'
+                                ? data.error
+                                : (data.error?.message || 'Blad rejestracji');
+                            throw new Error(errorMsg);
                         }
 
                         // Registration successful - now auto-login
@@ -952,7 +959,8 @@
                         }
 
                     } catch (error) {
-                        this.showAlert('error', error.message);
+                        const msg = error?.message || (typeof error === 'string' ? error : 'Wystapil blad');
+                        this.showAlert('error', msg);
                         this.loading = false;
                     }
                 },
